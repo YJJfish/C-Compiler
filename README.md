@@ -46,8 +46,14 @@ Due to the complexity of C language, to simplify our project task, we design a C
     The following code shows how to define arrays of float pointers:
 
     ```C
-    float*[10] Fptr1D;
-    float*[5][5] Fptr2D;
+    float ptr[10] FPtr1D;
+    float ptr[5][5] FPtr2D;
+    ```
+
+    The following code shows how to define an array of pointers pointing to bool arrays:
+
+    ```C
+    bool[10]ptr[20] ArrayPtr1D;
     ```
 
     The advantage of this grammar rule is that, in variable declarations, types and names can be split into different places, thus enabling the parser to deal with them separately.
