@@ -136,8 +136,7 @@ In conclusion, The grammar of our language is:
   VarDecl ->	VarType IDENTIFIER | 
   			VarType IDENTIFIER ASSIGN Expr
   
-  TypeDecl ->	TYPEDEF VarType IDENTIFIER |
-  			TYPEDEF VarType IDENTIFIER
+  TypeDecl ->	TYPEDEF VarType IDENTIFIER
   
   VarType ->	_VarType |
   			CONST _VarType
