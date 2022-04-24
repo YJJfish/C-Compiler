@@ -64,7 +64,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int[2][2] a = {{1,2}, {3,4}};
     ```
 
-    We need a grammar that can recognize the following language:
+    , we need a grammar that can recognize the following language:
 
     -   On the left hand side of "=", there is a string consisting of matched bracket pairs, and there should not be any nesting.
     -   On the right hand side of "=", there is a string consisting of matched nested brace pairs.
@@ -82,42 +82,92 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
 6. 
 
-7. 
 
-The context-free grammar of our language is:
 
-```
-Program ->	Decls
+In conclusion, The grammar of our language is:
 
-Decls ->	Decls Decl | ε
+- Terminals:
 
-Decl ->		FuncDecl | VarDecl ; | TypeDecl ;
+  ```
+  COMMA			","
+  SEMI			";"
+  LPAREN			"("
+  RPAREN			")"
+  LBRACKET		"["
+  RBRACKET		"]"
+  LBRACE			"{"
+  RBRACE			"}"
+  EQ				"=="
+  GE				">="
+  GT				">"
+  LE				"<="
+  LT				"<"
+  NEQ				"!="
+  NOT				"!"
+  ASSIGN			"="
+  AND				"&&"
+  BAND			"&"
+  OR				"||"
+  BOR				"|"
+  BXOR			"^"
+  BNOT			"~"
+  ADD				"+"
+  SUB				"-"
+  MUL				"*"
+  DIV				"/"
+  MOD				"%"
+  IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
+  
+  
+  ```
 
-FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN ; |
-			VarType IDENTIFIER LPAREN ArgList RPAREN Block
+- Rules:
 
-VarDecl ->	VarType IDENTIFIER | 
-			VarType IDENTIFIER EQUAL Expr |
-			VarType IDENTIFIER LBRACKET INTEGER RBRACKET |
-			VarType IDENTIFIER LBRACKET INTEGER RBRACKET EQUAL LBRACE Exprs RBRACE
+  ```
+  Program ->	Decls
+  
+  Decls ->	Decls Decl | ε
+  
+  Decl ->		FuncDecl | VarDecl SEMI | TypeDecl SEMI
+  
+  FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN SEMI |
+  			VarType IDENTIFIER LPAREN ArgList RPAREN Block
+  
+  VarDecl ->	VarType IDENTIFIER | 
+  			VarType IDENTIFIER ASSIGN Expr
+  
+  TypeDecl ->	TYPEDEF VarType IDENTIFIER |
+  			TYPEDEF VarType IDENTIFIER
+  
+  VarType ->	_VarType |
+  			CONST _VarType
+  
+  _VarType ->	IDENTIFIER |
+  			STRUCT LBRACE VarDecls RBRACE |
+  			ENUM LBRACE EnmList RBRACE
+  			_VarType PTR |
+  			_VarType LBRACKET INTEGER RBRACKET
+  
+  VarDecls ->	VarDecls VarDecl SEMI | ε
+  
+  EnmList ->	_EnmList COMMA Enm | Enm | ε
+  
+  _EnmList ->	_EnmList COMMA Enm | Enm
+  
+  Enm ->		IDENTIFIER | IDENTIFIER ASSIGN INTEGER
+  
+  ArgList ->	_ArgList COMMA Arg | Arg | ε
+  
+  _ArgList ->	_ArgList COMMA Arg | Arg
+  
+  Arg ->		VarType IDENTIFIER | VarType
+  
+  Block ->	LBRACE Stmts RBRACE
+  
+  Stmts ->	Stmts Stmt SEMI | Stmts Block | ε
+  
+  Stmt ->		VarDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt
+  ```
 
-TypeDecl ->	TYPEDEF VarType IDENTIFIER |
-			TYPEDEF VarType IDENTIFIER LBRACKET INTEGER RBRACKET
-
-VarType ->	IDENTIFIER | IDENTIFIER PTR | #!To be supplemented
-
-ArgList ->	_ArgList , Arg | Arg | ε
-
-_ArgList ->	_ArgList , Arg | Arg
-
-Arg ->		VarType Identifier | VarType
-
-Block ->	LBRACE Stmts RBRACE
-
-Stmts ->	Stmts Stmt ; | ε
-
-Stmt ->		VarDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt
-
-Expr -> 
-```
+  
 
