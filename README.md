@@ -110,6 +110,10 @@ In conclusion, The grammar of our language is:
   RBRACKET		"]"
   LBRACE			"{"
   RBRACE			"}"
+  SHLEQ			"<<="
+  SHL				"<<"
+  SHREQ			">>="
+  SHR				">>"
   EQ				"=="
   GE				">="
   GT				">"
@@ -119,16 +123,29 @@ In conclusion, The grammar of our language is:
   NOT				"!"
   ASSIGN			"="
   AND				"&&"
+  BANDEQ			"&="
   BAND			"&"
   OR				"||"
+  BOREQ			"|="
   BOR				"|"
+  ARW				"->"
+  BXOREQ			"^="
   BXOR			"^"
   BNOT			"~"
+  DADD			"++"
+  ADDEQ			"+="
   ADD				"+"
+  DSUB			"--"
+  SUBEQ			"-="
   SUB				"-"
+  MULEQ			"*="
   MUL				"*"
+  DIVEQ			"/="
   DIV				"/"
+  MODEQ			"%="
   MOD				"%"
+  QUES			"?"
+  COLON			":"
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
   
   
@@ -203,6 +220,53 @@ In conclusion, The grammar of our language is:
   CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
   
   ReturnStmt->RETURN Expr
+  
+  Expr ->		Expr LBRACKET Expr RBRACKET
+  			IDENTIFIER LPAREN Expr RPAREN
+  			Expr DOT IDENTIFIER
+  			Expr ARW IDENTIFIER
+  			ADD Expr
+  			SUB Expr
+  			LPAREN VarType RPAREN Expr
+  			DADD Expr
+  			Expr DADD
+  			DSUB Expr
+  			Expr DSUB
+  			MUL Expr
+  			BAND Expr
+  			NOT Expr
+  			BNOT Expr
+  			Expr DIV Expr
+  			Expr MUL Expr
+  			Expr MOD Expr
+  			Expr ADD Expr
+  			Expr SUB Expr
+  			Expr SHL Expr
+  			Expr SHR Expr
+  			Expr GT Expr
+  			Expr GE Expr
+  			Expr LT Expr
+  			Expr LE Expr
+  			Expr EQ Expr
+  			Expr NEQ Expr
+  			Expr BAND Expr
+  			Expr BXOR Expr
+  			Expr BOR Expr
+  			Expr AND Expr
+  			Expr OR Expr
+  			Expr QUES Expr COLON Expr
+  			Expr ASSIGN Expr
+  			Expr DIVEQ Expr
+  			Expr MULEQ Expr
+  			Expr MODEQ Expr
+  			Expr ADDEQ Expr
+  			Expr SUBEQ Expr
+  			Expr SHLEQ Expr
+  			Expr SHREQ Expr
+  			Expr BANDEQ Expr
+  			Expr BXOREQ Expr
+  			Expr BOREQ Expr
+  			Expr COMMA Expr
   ```
 
   
