@@ -3,8 +3,6 @@
  * This file defines the CodeGenerator class,		*
  * along with some global variables needed for		*
  * code generation.									*
- * in AST (Abstract Tree).							*
- * All classes are defined in the AST namespace.	*
  ****************************************************
  */
 
@@ -25,6 +23,8 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/IR/ValueSymbolTable.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/Interpreter.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
@@ -36,6 +36,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/DynamicLibrary.h>
 #include <llvm/Target/TargetMachine.h>
+
+
 #include "AST.h"
 
 //The global context.
@@ -44,31 +46,32 @@ extern llvm::LLVMContext Context;
 //A helper object that makes it easy to generate LLVM instructions.
 //It keeps track of the current place to insert instructions and
 //has methods to create new instructions.
-extern llvm::IRBuilder<> IRBuilder(Context);
+extern llvm::IRBuilder<> IRBuilder;
 
 //CodeGenerator class
 class CodeGenerator {
 public:
-	std::stack<llvm::Function*> FuncStack;
-	llvm::Function* MainFunction, * Printf, * Scanf;
-	unsigned int AddrSpace;
 	llvm::Module* Module;
+	llvm::Function* GlobalField, * Printf, * Scanf;
+	std::stack<llvm::Function*> FuncStack;
+	unsigned int AddrSpace;
+	
 	//Constructor
 	CodeGenerator(void) :
 		Module(new llvm::Module("main", Context)),
-		MainFunction(NULL),
+		GlobalField(NULL),
 		Printf(NULL),
-		Scanf(NULL) {
-		this->AddrSpace = this->Module->getDataLayout().getAllocaAddrSpace();
-	}
+		Scanf(NULL),
+		AddrSpace(this->Module->getDataLayout().getAllocaAddrSpace())
+	{}
 	//Pass the root of the ast to this function and generate code
 	void GenerateCode(AST::Program& Root) {
 		//Main function
 		std::vector<llvm::Type*> ArgTypes;
 		llvm::FunctionType* MainFuncType = llvm::FunctionType::get(IRBuilder.getVoidTy(), ArgTypes, false);
-		this->MainFunction = llvm::Function::Create(MainFuncType, llvm::GlobalValue::InternalLinkage, "main", *(this->Module));
-		llvm::BasicBlock* EntryBlock = llvm::BasicBlock::Create(Context, "entry", this->MainFunction, 0);
-		this->FuncStack.push(this->MainFunction);
+		this->GlobalField = llvm::Function::Create(MainFuncType, llvm::GlobalValue::InternalLinkage, "global", *(this->Module));
+		llvm::BasicBlock* EntryBlock = llvm::BasicBlock::Create(Context, "entry", this->GlobalField, 0);
+		this->FuncStack.push(this->GlobalField);
 		IRBuilder.SetInsertPoint(EntryBlock);
 		//Create printf function
 		ArgTypes.clear();
@@ -82,10 +85,13 @@ public:
 		this->Scanf->setCallingConv(llvm::CallingConv::C);
 
 		//Generate code
-		//Root.CodeGen(*this);
+		Root.CodeGen(*this);
 
 		//Return
 		IRBuilder.CreateRetVoid();
 		this->FuncStack.pop();
+
+		//Print result
+		this->Module->print(llvm::errs(), NULL);
 	}
 };

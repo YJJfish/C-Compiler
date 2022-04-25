@@ -50,7 +50,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     float ptr[5][5] FPtr2D;
     ```
 
-    The following code shows how to define an array of pointers pointing to bool arrays:
+    The following code shows how to define an array of 20 pointers pointing to bool arrays:
 
     ```C
     bool[10]ptr[20] ArrayPtr1D;
@@ -80,7 +80,20 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int[2] e = 1;					//Illegal
     ```
 
-6. 
+6. For simplicity, in our language, a semicolon should be added to the end of a pair of braces. In C, there is no need to write semicolons after braces.
+
+    ```C
+    int abs(int x){
+    	if (x > 0){
+    		return x;
+    	};
+    	else{
+    		return -x;
+    	};
+    };
+    ```
+
+    
 
 
 
@@ -126,15 +139,21 @@ In conclusion, The grammar of our language is:
   ```
   Program ->	Decls
   
-  Decls ->	Decls Decl | ε
+  Decls ->	Decls Decl SEMI| ε
   
-  Decl ->		FuncDecl | VarDecl SEMI | TypeDecl SEMI
+  Decl ->		FuncDecl | VarDecl | TypeDecl
   
-  FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN SEMI |
+  FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
   			VarType IDENTIFIER LPAREN ArgList RPAREN Block
   
-  VarDecl ->	VarType IDENTIFIER | 
-  			VarType IDENTIFIER ASSIGN Expr
+  VarDecl ->	VarType VarList
+  
+  VarList ->	_VarList COMMA VarInit | VarInit | ε
+  
+  _VarList ->	_VarList COMMA VarInit | VarInit
+  
+  VarInit ->	IDENTIFIER |
+  			IDENTIFIER ASSIGN Expr
   
   TypeDecl ->	TYPEDEF VarType IDENTIFIER
   
@@ -153,7 +172,8 @@ In conclusion, The grammar of our language is:
   
   _EnmList ->	_EnmList COMMA Enm | Enm
   
-  Enm ->		IDENTIFIER | IDENTIFIER ASSIGN INTEGER
+  Enm ->		IDENTIFIER |
+  			IDENTIFIER ASSIGN INTEGER
   
   ArgList ->	_ArgList COMMA Arg | Arg | ε
   
@@ -163,9 +183,26 @@ In conclusion, The grammar of our language is:
   
   Block ->	LBRACE Stmts RBRACE
   
-  Stmts ->	Stmts Stmt SEMI | Stmts Block | ε
+  Stmts ->	Stmts Stmt SEMI | ε
   
-  Stmt ->		VarDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt
+  Stmt ->		Decl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
+  
+  IfStmt ->	IF LPAREN Expr RPAREN Stmt |
+  			IF LPAREN Expr RPAREN Stmt ELSE Stmt
+  
+  ForStmt ->	FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
+  
+  WhileStmt ->WHILE LPAREN Expr RPAREN Stmt
+  
+  DoStmt ->	DO Stmt WHILE LPAREN Expr RPAREN
+  
+  SwitchStmt->SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
+  
+  CaseList ->	CaseList CaseStmt | ε
+  
+  CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
+  
+  ReturnStmt->RETURN Expr
   ```
 
   
