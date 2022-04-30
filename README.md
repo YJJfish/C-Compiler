@@ -103,6 +103,8 @@ In conclusion, The grammar of our language is:
 
   ```
   COMMA			","
+  DOT				"."
+  QUOTE			"\""
   SEMI			";"
   LPAREN			"("
   RPAREN			")"
@@ -146,8 +148,23 @@ In conclusion, The grammar of our language is:
   MOD				"%"
   QUES			"?"
   COLON			":"
+  STRUCT			"struct"
+  TYPEDEF			"typedef"
+  CONST			"const"
+  ENUM			"enum"
+  PTR				"ptr"
+  IF				"if"
+  ELSE			"else"
+  FOR				"for"
+  WHILE			"while"
+  DO				"do"
+  SWITCH			"switch"
+  CASE			"case"
+  DEFAULT			"default"
+  RETURN			"return"
+  REAL			[0-9]+\.[0-9]+
+  INTERGER		[0-9]+
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
-  
   
   ```
 
@@ -161,7 +178,9 @@ In conclusion, The grammar of our language is:
   Decl ->		FuncDecl | VarDecl | TypeDecl
   
   FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
-  			VarType IDENTIFIER LPAREN ArgList RPAREN Block
+  			VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody
+  
+  FuncBody ->	LBRACE Stmts RBRACE
   
   VarDecl ->	VarType VarList
   
@@ -202,7 +221,7 @@ In conclusion, The grammar of our language is:
   
   Stmts ->	Stmts Stmt SEMI | ε
   
-  Stmt ->		Decl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
+  Stmt ->		VarDecl | TypeDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
   
   IfStmt ->	IF LPAREN Expr RPAREN Stmt |
   			IF LPAREN Expr RPAREN Stmt ELSE Stmt
@@ -221,53 +240,59 @@ In conclusion, The grammar of our language is:
   
   ReturnStmt->RETURN Expr
   
-  Expr ->		Expr LBRACKET Expr RBRACKET
-  			IDENTIFIER LPAREN Expr RPAREN
-  			Expr DOT IDENTIFIER
-  			Expr ARW IDENTIFIER
-  			ADD Expr
-  			SUB Expr
-  			LPAREN VarType RPAREN Expr
-  			DADD Expr
-  			Expr DADD
-  			DSUB Expr
-  			Expr DSUB
-  			MUL Expr
-  			BAND Expr
-  			NOT Expr
-  			BNOT Expr
-  			Expr DIV Expr
-  			Expr MUL Expr
-  			Expr MOD Expr
-  			Expr ADD Expr
-  			Expr SUB Expr
-  			Expr SHL Expr
-  			Expr SHR Expr
-  			Expr GT Expr
-  			Expr GE Expr
-  			Expr LT Expr
-  			Expr LE Expr
-  			Expr EQ Expr
-  			Expr NEQ Expr
-  			Expr BAND Expr
-  			Expr BXOR Expr
-  			Expr BOR Expr
-  			Expr AND Expr
-  			Expr OR Expr
-  			Expr QUES Expr COLON Expr
-  			Expr ASSIGN Expr
-  			Expr DIVEQ Expr
-  			Expr MULEQ Expr
-  			Expr MODEQ Expr
-  			Expr ADDEQ Expr
-  			Expr SUBEQ Expr
-  			Expr SHLEQ Expr
-  			Expr SHREQ Expr
-  			Expr BANDEQ Expr
-  			Expr BXOREQ Expr
-  			Expr BOREQ Expr
-  			Expr COMMA Expr
+  Expr ->		Expr LBRACKET Expr RBRACKET |
+  			IDENTIFIER LPAREN Expr RPAREN |
+  			Expr DOT IDENTIFIER |
+  			Expr ARW IDENTIFIER |
+  			ADD Expr |
+  			SUB Expr |
+  			LPAREN VarType RPAREN Expr |
+  			DADD Expr |
+  			Expr DADD |
+  			DSUB Expr |
+  			Expr DSUB |
+  			MUL Expr |
+  			BAND Expr |
+  			NOT Expr |
+  			BNOT Expr |
+  			Expr DIV Expr |
+  			Expr MUL Expr |
+  			Expr MOD Expr |
+  			Expr ADD Expr |
+  			Expr SUB Expr |
+  			Expr SHL Expr |
+  			Expr SHR Expr |
+  			Expr GT Expr |
+  			Expr GE Expr |
+  			Expr LT Expr |
+  			Expr LE Expr |
+  			Expr EQ Expr |
+  			Expr NEQ Expr |
+  			Expr BAND Expr |
+  			Expr BXOR Expr |
+  			Expr BOR Expr |
+  			Expr AND Expr |
+  			Expr OR Expr |
+  			Expr QUES Expr COLON Expr |
+  			Expr ASSIGN Expr |
+  			Expr DIVEQ Expr |
+  			Expr MULEQ Expr |
+  			Expr MODEQ Expr |
+  			Expr ADDEQ Expr |
+  			Expr SUBEQ Expr |
+  			Expr SHLEQ Expr |
+  			Expr SHREQ Expr |
+  			Expr BANDEQ Expr |
+  			Expr BXOREQ Expr |
+  			Expr BOREQ Expr |
+  			Expr COMMA Expr |
+  			QUOTE IDENTIFIER QUOTE |
+  			INTEGER |
+  			REAL |
   ```
-
+  
   
 
+## LLVM Manual
+
+1. A well formed basic block is formed of a list of non-terminating instructions **followed by a single terminator instruction**. Terminator instructions **may not occur** in the middle of basic blocks, and must terminate the blocks.

@@ -8,7 +8,7 @@
 
 #include "CodeGenerator.h"
 
- //The global context.
+//The global context.
 llvm::LLVMContext Context;
 
 //A helper object that makes it easy to generate LLVM instructions.

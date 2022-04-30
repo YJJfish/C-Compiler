@@ -12,6 +12,7 @@
 #include <map>
 #include <stack>
 #include <string>
+#include <llvm/IR/Value.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Function.h>
