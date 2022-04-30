@@ -65,9 +65,19 @@ public:
 		Scanf(NULL),
 		AddrSpace(this->Module->getDataLayout().getAllocaAddrSpace())
 	{}
+
+	//Get the current function
+	llvm::Function* GetCurrentFunction(void) {
+		if (this->FuncStack.size())
+			return this->FuncStack.top();
+		else
+			return NULL;
+	}
+
 	//Pass the root of the ast to this function and generate code
 	void GenerateCode(AST::Program& Root) {
 		//Main function
+		/*
 		std::vector<llvm::Type*> ArgTypes;
 		llvm::FunctionType* MainFuncType = llvm::FunctionType::get(IRBuilder.getVoidTy(), ArgTypes, false);
 		this->GlobalField = llvm::Function::Create(MainFuncType, llvm::GlobalValue::InternalLinkage, "global", *(this->Module));
@@ -90,7 +100,10 @@ public:
 
 		//Return
 		IRBuilder.CreateRetVoid();
-		this->FuncStack.pop();
+		this->FuncStack.pop();*/
+
+		//Generate code
+		Root.CodeGen(*this);
 
 		//Print result
 		this->Module->print(llvm::errs(), NULL);

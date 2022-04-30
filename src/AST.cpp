@@ -74,7 +74,6 @@ namespace AST {
 			}
 			//Generate code of the function body
 			__Generator.FuncStack.push(Func);
-			this->_FuncBody->_RetType = Func->getReturnType();
 			this->_FuncBody->CodeGen(__Generator);
 			__Generator.FuncStack.pop();
 			//We don't need to create return value explicitly,
@@ -84,19 +83,51 @@ namespace AST {
 			//else
 			//	IRBuilder.CreateRetVoid();
 			//Reset insert point
-			IRBuilder.SetInsertPoint(&(__Generator.FuncStack.top())->getBasicBlockList().back());
+			//IRBuilder.SetInsertPoint(&(__Generator.FuncStack.top())->getBasicBlockList().back());
 		}
 		return Func;
 	}
 
 	//Function body
 	llvm::Value* FuncBody::CodeGen(CodeGenerator& __Generator) {
-
+		//Generate the statements in FuncBody, one by one.
+		for (auto& Decl : *(this->_Content))
+			//If the current block already has a terminator,
+			//i.e. a "return" statement is generated, stop;
+			//Otherwise, continue generating.
+			if (IRBuilder.GetInsertBlock()->getTerminator())
+				break;
+			else
+				Decl->CodeGen(__Generator);
 	}
 
 	//Variable declaration
 	llvm::Value* VarDecl::CodeGen(CodeGenerator& __Generator) {
-
+		//Get the llvm type
+		llvm::Type* VarType = this->_VarType->GetLLVMType(__Generator);
+		//Create variables one by one.
+		for (auto& NewVar : *(this->_VarList)) {
+			//Determine whether the declaration is inside a function.
+			//If so, create an alloca;
+			//Otherwise, create a global variable.
+			if (__Generator.GetCurrentFunction()) {
+				
+			}
+			else {
+				//Create the contant initializer
+				llvm::Constant* Initializer = NULL;
+				if (NewVar->_InitialValue);
+				//Create a global variable
+				new llvm::GlobalVariable(
+					*(__Generator.Module),
+					VarType,
+					this->_VarType->_isConst,
+					llvm::Function::ExternalLinkage,
+					Initializer,
+					NewVar->_Name
+				);
+			}
+		}
 	}
 
 	//Type declaration

@@ -94,9 +94,8 @@ namespace AST {
 	public:
 		//Its content
 		Stmts* _Content;
-		//FuncBody needs to know the return type in order to do type casting
-		llvm::Type* _RetType;
-		FuncBody(Stmts* __Content) :_Content(__Content), _RetType(NULL) {}
+
+		FuncBody(Stmts* __Content) :_Content(__Content) {}
 		~FuncBody(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
@@ -115,7 +114,7 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
 	
-	//A variable in one variable declaration line
+	//A variable in one variable declaration
 	class VarInit : public Node {
 	public:
 		//The name of the variable
@@ -203,5 +202,13 @@ namespace AST {
 		Block(Stmts* __Content) :_Content(__Content) {}
 		~Block(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Pure virtual class for expression
+	class Expr : public Stmt {
+	public:
+		Expr(void) {}
+		~Expr(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
 	};
 }

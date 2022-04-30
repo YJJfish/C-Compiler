@@ -286,7 +286,9 @@ In conclusion, The grammar of our language is:
   			Expr BXOREQ Expr |
   			Expr BOREQ Expr |
   			Expr COMMA Expr |
-  			QUOTE IDENTIFIER QUOTE |
+  			Constant
+  
+  Constant ->	QUOTE IDENTIFIER QUOTE |
   			INTEGER |
   			REAL |
   ```
@@ -296,3 +298,7 @@ In conclusion, The grammar of our language is:
 ## LLVM Manual
 
 1. A well formed basic block is formed of a list of non-terminating instructions **followed by a single terminator instruction**. Terminator instructions **may not occur** in the middle of basic blocks, and must terminate the blocks.
+
+2. Global variables define regions of memory allocated at compilation time instead of run-time. Global variable definitions must be initialized.
+
+   ![image-20220430211156703](Images/image-20220430211156703.png)
