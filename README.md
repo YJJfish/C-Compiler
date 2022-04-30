@@ -103,68 +103,68 @@ In conclusion, The grammar of our language is:
 
   ```
   COMMA			","
-DOT				"."
-QUOTE			"\""
-SEMI			";"
-LPAREN			"("
-RPAREN			")"
-LBRACKET		"["
-RBRACKET		"]"
-LBRACE			"{"
-RBRACE			"}"
-SHLEQ			"<<="
-SHL				"<<"
-SHREQ			">>="
-SHR				">>"
-EQ				"=="
-GE				">="
-GT				">"
-LE				"<="
-LT				"<"
-NEQ				"!="
-NOT				"!"
-ASSIGN			"="
-AND				"&&"
-BANDEQ			"&="
-BAND			"&"
-OR				"||"
-BOREQ			"|="
-BOR				"|"
-ARW				"->"
-BXOREQ			"^="
-BXOR			"^"
-BNOT			"~"
-DADD			"++"
-ADDEQ			"+="
-ADD				"+"
-DSUB			"--"
-SUBEQ			"-="
-SUB				"-"
-MULEQ			"*="
-MUL				"*"
-DIVEQ			"/="
-DIV				"/"
-MODEQ			"%="
-MOD				"%"
-QUES			"?"
-COLON			":"
-STRUCT			"struct"
-TYPEDEF			"typedef"
-CONST			"const"
-ENUM			"enum"
-PTR				"ptr"
-IF				"if"
-ELSE			"else"
-FOR				"for"
-WHILE			"while"
-DO				"do"
-SWITCH			"switch"
-CASE			"case"
-DEFAULT			"default"
-RETURN			"return"
-IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
-REAL			[0-9]+\.[0-9]+ 
-INTERGER		[0-9]+
+  DOT				"."
+  QUOTE			"\""
+  SEMI			";"
+  LPAREN			"("
+  RPAREN			")"
+  LBRACKET		"["
+  RBRACKET		"]"
+  LBRACE			"{"
+  RBRACE			"}"
+  SHLEQ			"<<="
+  SHL				"<<"
+  SHREQ			">>="
+  SHR				">>"
+  EQ				"=="
+  GE				">="
+  GT				">"
+  LE				"<="
+  LT				"<"
+  NEQ				"!="
+  NOT				"!"
+  ASSIGN			"="
+  AND				"&&"
+  BANDEQ			"&="
+  BAND			"&"
+  OR				"||"
+  BOREQ			"|="
+  BOR				"|"
+  ARW				"->"
+  BXOREQ			"^="
+  BXOR			"^"
+  BNOT			"~"
+  DADD			"++"
+  ADDEQ			"+="
+  ADD				"+"
+  DSUB			"--"
+  SUBEQ			"-="
+  SUB				"-"
+  MULEQ			"*="
+  MUL				"*"
+  DIVEQ			"/="
+  DIV				"/"
+  MODEQ			"%="
+  MOD				"%"
+  QUES			"?"
+  COLON			":"
+  STRUCT			"struct"
+  TYPEDEF			"typedef"
+  CONST			"const"
+  ENUM			"enum"
+  PTR				"ptr"
+  IF				"if"
+  ELSE			"else"
+  FOR				"for"
+  WHILE			"while"
+  DO				"do"
+  SWITCH			"switch"
+  CASE			"case"
+  DEFAULT			"default"
+  RETURN			"return"
+  IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
+  REAL			[0-9]+\.[0-9]+ 
+  INTERGER		[0-9]+
   
   
   ```
@@ -174,72 +174,72 @@ INTERGER		[0-9]+
   ```
   Program ->	Decls
 
-Decls ->	Decls Decl SEMI| ε
+  Decls ->	Decls Decl SEMI| ε
 
-Decl ->		FuncDecl | VarDecl | TypeDecl
+  Decl ->		FuncDecl | VarDecl | TypeDecl
 
-FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
+  FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
 			VarType IDENTIFIER LPAREN ArgList RPAREN Block
 
-VarDecl ->	VarType VarList
+  VarDecl ->	VarType VarList
 
-VarList ->	_VarList COMMA VarInit | VarInit | ε
+  VarList ->	_VarList COMMA VarInit | VarInit | ε
 
-_VarList ->	_VarList COMMA VarInit | VarInit
+  _VarList ->	_VarList COMMA VarInit | VarInit
 
-VarInit ->	IDENTIFIER |
-			IDENTIFIER ASSIGN Expr
+  VarInit ->	IDENTIFIER |
+ 			IDENTIFIER ASSIGN Expr
 
-TypeDecl ->	TYPEDEF VarType IDENTIFIER
+  TypeDecl ->	TYPEDEF VarType IDENTIFIER
 
-VarType ->	_VarType |
+  VarType ->	_VarType |
 			CONST _VarType
 
-_VarType ->	IDENTIFIER |
+  _VarType ->	IDENTIFIER |
 			STRUCT LBRACE VarDecls RBRACE |
 			ENUM LBRACE EnmList RBRACE
 			_VarType PTR |
 			_VarType LBRACKET INTEGER RBRACKET
 
-VarDecls ->	VarDecls VarDecl SEMI | ε
+  VarDecls ->	VarDecls VarDecl SEMI | ε
 
-EnmList ->	_EnmList COMMA Enm | Enm | ε
+  EnmList ->	_EnmList COMMA Enm | Enm | ε
 
-_EnmList ->	_EnmList COMMA Enm | Enm
+  _EnmList ->	_EnmList COMMA Enm | Enm
 
-Enm ->		IDENTIFIER |
+  Enm ->		IDENTIFIER |
 			IDENTIFIER ASSIGN INTEGER
 
-ArgList ->	_ArgList COMMA Arg | Arg | ε
+  ArgList ->	_ArgList COMMA Arg | Arg | ε
 
-_ArgList ->	_ArgList COMMA Arg | Arg
+  _ArgList ->	_ArgList COMMA Arg | Arg
 
-Arg ->		VarType IDENTIFIER | VarType
+  Arg ->		VarType IDENTIFIER | VarType
 
-Block ->	LBRACE Stmts RBRACE
+  Block ->	LBRACE Stmts RBRACE
 
-Stmts ->	Stmts Stmt SEMI | ε
+  Stmts ->	Stmts Stmt SEMI | ε
 
-Stmt ->		Decl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
+  Stmt ->		Decl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
 
-IfStmt ->	IF LPAREN Expr RPAREN Stmt |
+  IfStmt ->	IF LPAREN Expr RPAREN Stmt |
 			IF LPAREN Expr RPAREN Stmt ELSE Stmt
 
-ForStmt ->	FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
+  ForStmt ->	FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
 
-WhileStmt -> WHILE LPAREN Expr RPAREN Stmt
+  WhileStmt -> WHILE LPAREN Expr RPAREN Stmt
 
-DoStmt ->	DO Stmt WHILE LPAREN Expr RPAREN
+  DoStmt ->	DO Stmt WHILE LPAREN Expr RPAREN
 
-SwitchStmt->SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
+  SwitchStmt->SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
 
-CaseList ->	CaseList CaseStmt | ε
+  CaseList ->	CaseList CaseStmt | ε
 
-CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
+  CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
 
-ReturnStmt -> RETURN Expr
+  ReturnStmt -> RETURN Expr
 
-Expr ->		Expr LBRACKET Expr RBRACKET | 
+  Expr ->		Expr LBRACKET Expr RBRACKET | 
 			IDENTIFIER LPAREN Expr RPAREN | 
 			Expr DOT IDENTIFIER |
 			Expr ARW IDENTIFIER |
