@@ -103,69 +103,68 @@ In conclusion, The grammar of our language is:
 
   ```
   COMMA			","
-  DOT			"."
+  DOT				"."
   QUOTE			"\""
   SEMI			";"
-  LPAREN		"("
-  RPAREN		")"
+  LPAREN			"("
+  RPAREN			")"
   LBRACKET		"["
   RBRACKET		"]"
-  LBRACE		"{"
-  RBRACE		"}"
+  LBRACE			"{"
+  RBRACE			"}"
   SHLEQ			"<<="
-  SHL			"<<"
+  SHL				"<<"
   SHREQ			">>="
-  SHR			">>"
-  EQ			"=="
-  GE			">="
-  GT			">"
-  LE			"<="
-  LT			"<"
-  NEQ			"!="
-  NOT			"!"
-  ASSIGN		"="
-  AND			"&&"
-  BANDEQ		"&="
+  SHR				">>"
+  EQ				"=="
+  GE				">="
+  GT				">"
+  LE				"<="
+  LT				"<"
+  NEQ				"!="
+  NOT				"!"
+  ASSIGN			"="
+  AND				"&&"
+  BANDEQ			"&="
   BAND			"&"
-  OR			"||"
+  OR				"||"
   BOREQ			"|="
-  BOR			"|"
-  ARW			"->"
-  BXOREQ		"^="
+  BOR				"|"
+  ARW				"->"
+  BXOREQ			"^="
   BXOR			"^"
   BNOT			"~"
   DADD			"++"
   ADDEQ			"+="
-  ADD			"+"
+  ADD				"+"
   DSUB			"--"
   SUBEQ			"-="
-  SUB			"-"
+  SUB				"-"
   MULEQ			"*="
-  MUL			"*"
+  MUL				"*"
   DIVEQ			"/="
-  DIV			"/"
+  DIV				"/"
   MODEQ			"%="
-  MOD			"%"
+  MOD				"%"
   QUES			"?"
   COLON			":"
-  STRUCT		"struct"
-  TYPEDEF		"typedef"
+  STRUCT			"struct"
+  TYPEDEF			"typedef"
   CONST			"const"
   ENUM			"enum"
-  PTR			"ptr"
-  IF			"if"
+  PTR				"ptr"
+  IF				"if"
   ELSE			"else"
-  FOR			"for"
+  FOR				"for"
   WHILE			"while"
-  DO			"do"
-  SWITCH		"switch"
+  DO				"do"
+  SWITCH			"switch"
   CASE			"case"
-  DEFAULT		"default"
-  RETURN		"return"
-  IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
-  REAL			[0-9]+\.[0-9]+ 
+  DEFAULT			"default"
+  RETURN			"return"
+  REAL			[0-9]+\.[0-9]+
   INTERGER		[0-9]+
-  
+  IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
   
   ```
 
@@ -173,121 +172,127 @@ In conclusion, The grammar of our language is:
 
   ```
   Program ->	Decls
-
+  
   Decls ->	Decls Decl SEMI| ε
-
-  Decl ->	FuncDecl | VarDecl | TypeDecl
-
+  
+  Decl ->		FuncDecl | VarDecl | TypeDecl
+  
   FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
-		VarType IDENTIFIER LPAREN ArgList RPAREN Block
-
+  			VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody
+  
+  FuncBody ->	LBRACE Stmts RBRACE
+  
   VarDecl ->	VarType VarList
-
+  
   VarList ->	_VarList COMMA VarInit | VarInit | ε
-
+  
   _VarList ->	_VarList COMMA VarInit | VarInit
-
+  
   VarInit ->	IDENTIFIER |
- 		IDENTIFIER ASSIGN Expr
-
+  			IDENTIFIER ASSIGN Expr
+  
   TypeDecl ->	TYPEDEF VarType IDENTIFIER
-
-  VarType ->	_VarType | CONST _VarType
-
+  
+  VarType ->	_VarType |
+  			CONST _VarType
+  
   _VarType ->	IDENTIFIER |
-		STRUCT LBRACE VarDecls RBRACE |
-		ENUM LBRACE EnmList RBRACE
-		_VarType PTR |
-		_VarType LBRACKET INTEGER RBRACKET
-
+  			STRUCT LBRACE VarDecls RBRACE |
+  			ENUM LBRACE EnmList RBRACE
+  			_VarType PTR |
+  			_VarType LBRACKET INTEGER RBRACKET
+  
   VarDecls ->	VarDecls VarDecl SEMI | ε
-
+  
   EnmList ->	_EnmList COMMA Enm | Enm | ε
-
+  
   _EnmList ->	_EnmList COMMA Enm | Enm
-
-  Enm ->	IDENTIFIER |
-		IDENTIFIER ASSIGN INTEGER
-
+  
+  Enm ->		IDENTIFIER |
+  			IDENTIFIER ASSIGN INTEGER
+  
   ArgList ->	_ArgList COMMA Arg | Arg | ε
-
+  
   _ArgList ->	_ArgList COMMA Arg | Arg
-
-  Arg ->	VarType IDENTIFIER | VarType
-
+  
+  Arg ->		VarType IDENTIFIER | VarType
+  
   Block ->	LBRACE Stmts RBRACE
-
+  
   Stmts ->	Stmts Stmt SEMI | ε
-
-  Stmt ->	Decl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
-
+  
+  Stmt ->		VarDecl | TypeDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
+  
   IfStmt ->	IF LPAREN Expr RPAREN Stmt |
-		IF LPAREN Expr RPAREN Stmt ELSE Stmt
-
+  			IF LPAREN Expr RPAREN Stmt ELSE Stmt
+  
   ForStmt ->	FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
-
-  WhileStmt ->  WHILE LPAREN Expr RPAREN Stmt
-
+  
+  WhileStmt ->WHILE LPAREN Expr RPAREN Stmt
+  
   DoStmt ->	DO Stmt WHILE LPAREN Expr RPAREN
-
-  SwitchStmt->	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
-
+  
+  SwitchStmt->SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
+  
   CaseList ->	CaseList CaseStmt | ε
-
+  
   CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
-
-  ReturnStmt -> RETURN Expr
-
-  Expr ->	Expr LBRACKET Expr RBRACKET | 
-		IDENTIFIER LPAREN Expr RPAREN | 
-		Expr DOT IDENTIFIER |
-		Expr ARW IDENTIFIER |
-		ADD Expr |
-		SUB Expr |
-		LPAREN VarType RPAREN Expr |
-		DADD Expr |
-		Expr DADD |
-		DSUB Expr |
-		Expr DSUB |
-		MUL Expr |
-		BAND Expr |
-		NOT Expr |
-		BNOT Expr |
-		Expr DIV Expr |
-		Expr MUL Expr |
-		Expr MOD Expr |
-		Expr ADD Expr |
-		Expr SUB Expr |
-		Expr SHL Expr |
-		Expr SHR Expr |
-		Expr GT Expr |
-		Expr GE Expr |
-		Expr LT Expr |
-		Expr LE Expr |
-		Expr EQ Expr |
-		Expr NEQ Expr |
-		Expr BAND Expr |
-		Expr BXOR Expr |
-		Expr BOR Expr |
-		Expr AND Expr |
-		Expr OR Expr |
-		Expr QUES Expr COLON Expr |
-		Expr ASSIGN Expr |
-		Expr DIVEQ Expr |
-		Expr MULEQ Expr |
-		Expr MODEQ Expr |
-		Expr ADDEQ Expr |
-		Expr SUBEQ Expr |
-		Expr SHLEQ Expr |
-		Expr SHREQ Expr |
-		Expr BANDEQ Expr |
-		Expr BXOREQ Expr |
-		Expr BOREQ Expr |
-		Expr COMMA Expr |
-		QUOTE IDENTIFIER QUOTE | 
-		INTEGER |
-		REAL
+  
+  ReturnStmt->RETURN Expr
+  
+  Expr ->		Expr LBRACKET Expr RBRACKET |
+  			IDENTIFIER LPAREN Expr RPAREN |
+  			Expr DOT IDENTIFIER |
+  			Expr ARW IDENTIFIER |
+  			ADD Expr |
+  			SUB Expr |
+  			LPAREN VarType RPAREN Expr |
+  			DADD Expr |
+  			Expr DADD |
+  			DSUB Expr |
+  			Expr DSUB |
+  			MUL Expr |
+  			BAND Expr |
+  			NOT Expr |
+  			BNOT Expr |
+  			Expr DIV Expr |
+  			Expr MUL Expr |
+  			Expr MOD Expr |
+  			Expr ADD Expr |
+  			Expr SUB Expr |
+  			Expr SHL Expr |
+  			Expr SHR Expr |
+  			Expr GT Expr |
+  			Expr GE Expr |
+  			Expr LT Expr |
+  			Expr LE Expr |
+  			Expr EQ Expr |
+  			Expr NEQ Expr |
+  			Expr BAND Expr |
+  			Expr BXOR Expr |
+  			Expr BOR Expr |
+  			Expr AND Expr |
+  			Expr OR Expr |
+  			Expr QUES Expr COLON Expr |
+  			Expr ASSIGN Expr |
+  			Expr DIVEQ Expr |
+  			Expr MULEQ Expr |
+  			Expr MODEQ Expr |
+  			Expr ADDEQ Expr |
+  			Expr SUBEQ Expr |
+  			Expr SHLEQ Expr |
+  			Expr SHREQ Expr |
+  			Expr BANDEQ Expr |
+  			Expr BXOREQ Expr |
+  			Expr BOREQ Expr |
+  			Expr COMMA Expr |
+  			QUOTE IDENTIFIER QUOTE |
+  			INTEGER |
+  			REAL |
   ```
-
+  
   
 
+## LLVM Manual
+
+1. A well formed basic block is formed of a list of non-terminating instructions **followed by a single terminator instruction**. Terminator instructions **may not occur** in the middle of basic blocks, and must terminate the blocks.
