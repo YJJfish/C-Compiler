@@ -89,13 +89,14 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
 
-	//Function body.
+	//Function body
 	class FuncBody : public Node {
 	public:
 		//Its content
 		Stmts* _Content;
-
-		FuncBody(Stmts* __Content) :_Content(__Content) {}
+		//FuncBody needs to know the return type in order to do type casting
+		llvm::Type* _RetType;
+		FuncBody(Stmts* __Content) :_Content(__Content), _RetType(NULL) {}
 		~FuncBody(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};

@@ -52,6 +52,11 @@ namespace AST {
 					std::cout << "[CodeGen] Redefinition of function " << this->_Name << " with different arg types.\n";
 					return NULL;
 				}
+			//Check return type. If Func took different different return types, reject.
+			if (this->_RetType->GetLLVMType(__Generator) != Func->getReturnType()) {
+				std::cout << "[CodeGen] Redefinition of function " << this->_Name << " with different return types.\n";
+				return NULL;
+			}
 		}
 		//If this function has a body, generate its body's code.
 		if (this->_FuncBody) {
@@ -61,26 +66,32 @@ namespace AST {
 			//Create allocated space for arguments
 			size_t Index = 0;
 			for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++) {
+				//Create alloca
 				llvm::IRBuilder<> TmpB(&Func->getEntryBlock(), Func->getEntryBlock().begin());
 				auto Alloc = TmpB.CreateAlloca(ArgTypes[Index], NULL, this->_ArgList->at(Index)->_Name);
+				//Assign the value by "store" instruction
 				IRBuilder.CreateStore(ArgIter, Alloc);
 			}
 			//Generate code of the function body
 			__Generator.FuncStack.push(Func);
+			this->_FuncBody->_RetType = Func->getReturnType();
 			this->_FuncBody->CodeGen(__Generator);
 			__Generator.FuncStack.pop();
 			//We don't need to create return value explicitly,
 			//because "return" statement will be used explicitly in the function body.
-			/*
-			if (!this->RetType->GetLLVMType(Generator)->isVoidTy())
-				IRBuilder.CreateRet(RetVal);
-			else
-				IRBuilder.CreateRetVoid();
-			*/
+			//if (!this->RetType->GetLLVMType(Generator)->isVoidTy())
+			//	IRBuilder.CreateRet(RetVal);
+			//else
+			//	IRBuilder.CreateRetVoid();
 			//Reset insert point
 			IRBuilder.SetInsertPoint(&(__Generator.FuncStack.top())->getBasicBlockList().back());
 		}
 		return Func;
+	}
+
+	//Function body
+	llvm::Value* FuncBody::CodeGen(CodeGenerator& __Generator) {
+
 	}
 
 	//Variable declaration
