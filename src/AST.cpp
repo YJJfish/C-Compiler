@@ -7,12 +7,14 @@
  */
 
 #include "AST.h"
+#include "Utils.hpp"
 
 namespace AST {
 	//A program is composed of several declarations
 	llvm::Value* Program::CodeGen(CodeGenerator& __Generator) {
 		for (auto Decl : *(this->_Decls))
-			Decl->CodeGen(__Generator);
+			if (Decl)	//We allow empty-declaration which is represented by NULL pointer.
+				Decl->CodeGen(__Generator);
 		return NULL;
 	}
 
@@ -73,32 +75,31 @@ namespace AST {
 				IRBuilder.CreateStore(ArgIter, Alloc);
 			}
 			//Generate code of the function body
-			__Generator.FuncStack.push(Func);
+			__Generator.PushFunction(Func);
+			__Generator.PushTypedefTable();
+			__Generator.PushVariableTable();
 			this->_FuncBody->CodeGen(__Generator);
-			__Generator.FuncStack.pop();
+			__Generator.PopVariableTable();
+			__Generator.PopTypedefTable();
+			__Generator.PopFunction();
 			//We don't need to create return value explicitly,
 			//because "return" statement will be used explicitly in the function body.
-			//if (!this->RetType->GetLLVMType(Generator)->isVoidTy())
-			//	IRBuilder.CreateRet(RetVal);
-			//else
-			//	IRBuilder.CreateRetVoid();
-			//Reset insert point
-			//IRBuilder.SetInsertPoint(&(__Generator.FuncStack.top())->getBasicBlockList().back());
 		}
-		return Func;
+		return NULL;
 	}
 
 	//Function body
 	llvm::Value* FuncBody::CodeGen(CodeGenerator& __Generator) {
 		//Generate the statements in FuncBody, one by one.
-		for (auto& Decl : *(this->_Content))
+		for (auto& Stmt : *(this->_Content))
 			//If the current block already has a terminator,
 			//i.e. a "return" statement is generated, stop;
 			//Otherwise, continue generating.
 			if (IRBuilder.GetInsertBlock()->getTerminator())
 				break;
-			else
-				Decl->CodeGen(__Generator);
+			else if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
+				Stmt->CodeGen(__Generator);
+		return NULL;
 	}
 
 	//Variable declaration
@@ -111,14 +112,27 @@ namespace AST {
 			//If so, create an alloca;
 			//Otherwise, create a global variable.
 			if (__Generator.GetCurrentFunction()) {
-				
+				//Create an alloca
+				auto Alloc = IRBuilder.CreateAlloca(VarType, NULL, NewVar->_Name);
+				__Generator.AddVariable(NewVar->_Name, Alloc);
+				//Assign the value by "store" instruction
+				if (NewVar->_InitialValue)
+					IRBuilder.CreateStore(NewVar->_InitialValue->CodeGen(__Generator), Alloc);
+				//TODO: llvm::AllocaInst doesn't has the "constant" attribute, so we need to implement it manually.
+				//Unfortunately, I haven't worked out a graceful solution.
 			}
 			else {
-				//Create the contant initializer
+				//Create the constant initializer
 				llvm::Constant* Initializer = NULL;
-				if (NewVar->_InitialValue);
+				if (NewVar->_InitialValue)
+					if (!NewVar->_InitialValue->_IsConstant) {
+						//Global variable must be initialized (if any) by a constant.
+						std::cout << "[CodeGen] Initializing global variable " << NewVar->_Name << " with non-constant value.\n";
+					}
+					else
+						Initializer = (llvm::Constant*)NewVar->_InitialValue->CodeGen(__Generator);
 				//Create a global variable
-				new llvm::GlobalVariable(
+				auto Alloc = new llvm::GlobalVariable(
 					*(__Generator.Module),
 					VarType,
 					this->_VarType->_isConst,
@@ -126,12 +140,108 @@ namespace AST {
 					Initializer,
 					NewVar->_Name
 				);
+				__Generator.AddVariable(NewVar->_Name, Alloc);
 			}
 		}
+		return NULL;
 	}
 
 	//Type declaration
 	llvm::Value* TypeDecl::CodeGen(CodeGenerator& __Generator) {
+		//Add an item to the current typedef symbol table
+		//If an old value exists (i.e., conflict), raise an error
+		if (__Generator.AddType(this->_Alias, this->_VarType->GetLLVMType(__Generator)))
+			std::cout << "Redefinition of typename " << this->_Alias << std::endl;
+		return NULL;
+	}
 
+	//Pointer type.
+	llvm::Type* PointerType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return _LLVMType;
+		llvm::Type* BaseType = this->_BaseType->GetLLVMType(__Generator);
+		return this->_LLVMType = llvm::PointerType::get(BaseType, 0U);
+	}
+
+	//Array type.
+	llvm::Type* ArrayType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return _LLVMType;
+		llvm::Type* BaseType = this->_BaseType->GetLLVMType(__Generator);
+		return this->_LLVMType = llvm::ArrayType::get(BaseType, this->_Length);
+	}
+
+	//Struct type.
+	llvm::Type* StructType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return _LLVMType;
+		//Generate the body of the struct type
+		std::vector<llvm::Type*> Members;
+		for (auto FDecl : *(this->_StructBody))
+			if (FDecl)	//We allow empty-declaration which is represented by NULL pointer.
+				Members.insert(Members.end(), FDecl->_MemList->size(), FDecl->_VarType->GetLLVMType(__Generator));
+		return this->_LLVMType = llvm::StructType::get(Context, Members);
+	}
+
+	//Enum type
+	llvm::Type* EnumType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return _LLVMType;
+		//Generate the body of the enum type
+		int LastVal = -1;
+		for (auto Mem : *(this->_EnmList))
+			if (Mem->_hasValue)
+				LastVal = Mem->_Value;
+			else {
+				Mem->_hasValue = true;
+				Mem->_Value = ++LastVal;
+			}
+		//Enum type is actually an int32 type.
+		return llvm::IntegerType::getInt32Ty(Context);
+	}
+
+	//Statement block
+	llvm::Value* Block::CodeGen(CodeGenerator& __Generator) {
+		__Generator.PushTypedefTable();
+		__Generator.PushVariableTable();
+		//Generate the statements in FuncBody, one by one.
+		for (auto& Stmt : *(this->_Content))
+			if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
+				Stmt->CodeGen(__Generator);
+		__Generator.PopTypedefTable();
+		__Generator.PopFunction();
+		return NULL;
+	}
+
+	//If statement
+	llvm::Value* IfStmt::CodeGen(CodeGenerator& __Generator) {
+		//Evaluate condition
+		llvm::Value* Condition = this->_Condition->CodeGen(__Generator);
+		//Cast the type to i1
+		if (!(Condition = Cast2I1(Condition))) {
+			std::cout << "The condition value of if-statement must be either an integer, or a floating-point number, or a pointer." << std::endl;
+			return NULL;
+		}
+		//Create "Then", "Else" and "Merge" block
+		llvm::Function* CurrentFunc = __Generator.GetCurrentFunction();
+		llvm::BasicBlock* ThenBB = llvm::BasicBlock::Create(Context, "Then", CurrentFunc);
+		llvm::BasicBlock* ElseBB = llvm::BasicBlock::Create(Context, "Else");
+		llvm::BasicBlock* MergeBB = llvm::BasicBlock::Create(Context, "Merge");
+		//Create a branch instruction
+		IRBuilder.CreateCondBr(Condition, ThenBB, ElseBB);
+		//Generate code in the "Then" block
+		IRBuilder.SetInsertPoint(ThenBB);
+		if (this->_Then)
+			this->_Then->CodeGen(__Generator);
+		IRBuilder.CreateBr(MergeBB);
+		//Generate code in the "Else" block
+		CurrentFunc->getBasicBlockList().push_back(ElseBB);
+		IRBuilder.SetInsertPoint(ElseBB);
+		if (this->_Else)
+			this->_Else->CodeGen(__Generator);
+		IRBuilder.CreateBr(ElseBB);
+		//Finish "Merge" block
+		CurrentFunc->getBasicBlockList().push_back(MergeBB);
+		return NULL;
 	}
 }

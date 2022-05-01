@@ -18,9 +18,17 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
 1. No macros (Commands including `#include`, `#define` and other macros are not allowed. Functions like `printf` and `scanf` should be directly used without `#include <stdio.h>`).
 
-2. All codes should be placed in one single source file.
+2. All codes should be placed in one single source file. (Since we don't allow any macro including `#include`)
 
 3. Pointer type should be declared using `ptr` instead of `*`, because the syntax parser cannot tell whether `a * b` means "`a` multiplies `b`" or "variable `b` is a pointer pointing to a memory location of type `a`".
+
+    ```C
+    typedef int a;	//"a" is an alias for type "int"
+    float a;		//"a" is a variable of type "float"
+    a * b;			//What does this mean? Expression "a * b" or declaration "int* b"?
+    ```
+
+    So, in our language, pointer types should be declared this way:
 
     ```C
     //In C language, the type of p is "int*", the type of q is "int"
@@ -30,7 +38,35 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int ptr p, q;	//Legal.
     ```
 
-4. For simplicity, we rewrite the grammar of array definition. In C, arrays are defined as follows:
+4. Expressions with a single variable name and empty variable declarations will result in reduce-reduce conflicts. For example:
+
+    ```C
+    typedef int a;	//"a" is an alias for type "int"
+    float a;		//"a" is a variable of type "float"
+    a;				//What does this mean? An expression or an empty declaration "int;"?
+    ```
+
+    One resolution is to inhibit empty variable declaration. However, in our language, we resolve this conflict by make yacc prefer expressions with a single variable name to empty variable declarations.
+
+    ```C++
+    /*In function body*/
+    {
+    	typedef int a;	//"a" is an alias for type "int"
+    	float a;		//"a" is a variable of type "float"
+    	a;				//OK. It semantic meaning is an expression with the identifier "a"
+    }
+    ```
+
+    However, since no statements except for declarations are allowed to appear in the global field, in this case, `a;` will be treated as an empty declaration:
+
+    ```C
+    /*global field*/
+    typedef int a;		//"a" is an alias for type "int"
+    float a;			//"a" is a variable of type "float"
+    a;					//This is an empty declaration equivalent to "int;"
+    ```
+
+5. For simplicity, we rewrite the grammar of array definition. In C, arrays are defined as follows:
 
     ```C
     int a[20], b[10], c[20];
@@ -58,7 +94,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
     The advantage of this grammar rule is that, in variable declarations, types and names can be split into different places, thus enabling the parser to deal with them separately.
 
-5. Initialize variables of complex types when they are declared are not allowed, because to support the following declaration:
+6. Initialize variables of complex types when they are declared are not allowed, because to support the following declaration:
 
     ```C
     int[2][2] a = {{1,2}, {3,4}};
@@ -80,7 +116,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int[2] e = 1;					//Illegal
     ```
 
-6. For simplicity, in our language, a semicolon should be added to the end of a pair of braces. In C, there is no need to write semicolons after braces.
+7. For simplicity, in our language, a semicolon should be added to the end of a pair of braces. In C, there is no need to write semicolons after braces.
 
     ```C
     int abs(int x){
@@ -171,126 +207,130 @@ In conclusion, The grammar of our language is:
 - Rules:
 
   ```
-  Program ->	Decls
+  Program ->		GlobalDecls
   
-  Decls ->	Decls Decl SEMI| ε
+  Decls ->		Decls Decl SEMI| ε
   
-  Decl ->		FuncDecl | VarDecl | TypeDecl
+  Decl ->			FuncDecl | VarDecl | TypeDecl | ε
   
-  FuncDecl ->	VarType IDENTIFIER LPAREN ArgList RPAREN |
-  			VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody
+  FuncDecl ->		VarType IDENTIFIER LPAREN ArgList RPAREN |
+  				VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody
   
-  FuncBody ->	LBRACE Stmts RBRACE
+  FuncBody ->		LBRACE Stmts RBRACE
   
-  VarDecl ->	VarType VarList
+  VarDecl ->		VarType VarList
   
-  VarList ->	_VarList COMMA VarInit | VarInit | ε
+  VarList ->		_VarList COMMA VarInit | VarInit | ε
   
-  _VarList ->	_VarList COMMA VarInit | VarInit
+  _VarList ->		_VarList COMMA VarInit | VarInit
   
-  VarInit ->	IDENTIFIER |
-  			IDENTIFIER ASSIGN Expr
+  VarInit ->		IDENTIFIER |
+  				IDENTIFIER ASSIGN Expr
   
-  TypeDecl ->	TYPEDEF VarType IDENTIFIER
+  TypeDecl ->		TYPEDEF VarType IDENTIFIER
   
-  VarType ->	_VarType |
-  			CONST _VarType
+  VarType ->		_VarType |
+  				CONST _VarType
   
-  _VarType ->	IDENTIFIER |
-  			STRUCT LBRACE VarDecls RBRACE |
-  			ENUM LBRACE EnmList RBRACE
-  			_VarType PTR |
-  			_VarType LBRACKET INTEGER RBRACKET
+  _VarType ->		IDENTIFIER |
+  				STRUCT LBRACE FieldDecls RBRACE |
+  				ENUM LBRACE EnmList RBRACE
+  				_VarType PTR |
+  				_VarType LBRACKET INTEGER RBRACKET
   
-  VarDecls ->	VarDecls VarDecl SEMI | ε
+  FieldDecls ->	FieldDecls FieldDecl SEMI | ε
   
-  EnmList ->	_EnmList COMMA Enm | Enm | ε
+  FieldDecl ->	VarType MemList | ε
   
-  _EnmList ->	_EnmList COMMA Enm | Enm
+  MemList ->		_MemList COMMA IDENTIFIER | IDENTIFIER | ε
   
-  Enm ->		IDENTIFIER |
-  			IDENTIFIER ASSIGN INTEGER
+  _MemList ->		_MemList COMMA IDENTIFIER | IDENTIFIER
   
-  ArgList ->	_ArgList COMMA Arg | Arg | ε
+  EnmList ->		_EnmList COMMA Enm | Enm | ε
   
-  _ArgList ->	_ArgList COMMA Arg | Arg
+  _EnmList ->		_EnmList COMMA Enm | Enm
   
-  Arg ->		VarType IDENTIFIER | VarType
+  Enm ->			IDENTIFIER |
+  				IDENTIFIER ASSIGN INTEGER
   
-  Block ->	LBRACE Stmts RBRACE
+  ArgList ->		_ArgList COMMA Arg | Arg | ε
   
-  Stmts ->	Stmts Stmt SEMI | ε
+  _ArgList ->		_ArgList COMMA Arg | Arg
   
-  Stmt ->		VarDecl | TypeDecl | Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block
+  Arg ->			VarType IDENTIFIER | VarType
   
-  IfStmt ->	IF LPAREN Expr RPAREN Stmt |
-  			IF LPAREN Expr RPAREN Stmt ELSE Stmt
+  Block ->		LBRACE Stmts RBRACE
   
-  ForStmt ->	FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
+  Stmts ->		Stmts Stmt SEMI | ε
   
-  WhileStmt ->WHILE LPAREN Expr RPAREN Stmt
+  Stmt ->			Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block | VarDecl | TypeDecl | ε
   
-  DoStmt ->	DO Stmt WHILE LPAREN Expr RPAREN
+  IfStmt ->		IF LPAREN Expr RPAREN Stmt |
+  				IF LPAREN Expr RPAREN Stmt ELSE Stmt
   
-  SwitchStmt->SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
+  ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
   
-  CaseList ->	CaseList CaseStmt | ε
+  WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
   
-  CaseStmt ->	CASE Expr Stmts | DEFAULT Stmts
+  DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN
   
-  ReturnStmt->RETURN Expr
+  SwitchStmt->	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
   
-  Expr ->		Expr LBRACKET Expr RBRACKET |
-  			IDENTIFIER LPAREN Expr RPAREN |
-  			Expr DOT IDENTIFIER |
-  			Expr ARW IDENTIFIER |
-  			ADD Expr |
-  			SUB Expr |
-  			LPAREN VarType RPAREN Expr |
-  			DADD Expr |
-  			Expr DADD |
-  			DSUB Expr |
-  			Expr DSUB |
-  			MUL Expr |
-  			BAND Expr |
-  			NOT Expr |
-  			BNOT Expr |
-  			Expr DIV Expr |
-  			Expr MUL Expr |
-  			Expr MOD Expr |
-  			Expr ADD Expr |
-  			Expr SUB Expr |
-  			Expr SHL Expr |
-  			Expr SHR Expr |
-  			Expr GT Expr |
-  			Expr GE Expr |
-  			Expr LT Expr |
-  			Expr LE Expr |
-  			Expr EQ Expr |
-  			Expr NEQ Expr |
-  			Expr BAND Expr |
-  			Expr BXOR Expr |
-  			Expr BOR Expr |
-  			Expr AND Expr |
-  			Expr OR Expr |
-  			Expr QUES Expr COLON Expr |
-  			Expr ASSIGN Expr |
-  			Expr DIVEQ Expr |
-  			Expr MULEQ Expr |
-  			Expr MODEQ Expr |
-  			Expr ADDEQ Expr |
-  			Expr SUBEQ Expr |
-  			Expr SHLEQ Expr |
-  			Expr SHREQ Expr |
-  			Expr BANDEQ Expr |
-  			Expr BXOREQ Expr |
-  			Expr BOREQ Expr |
-  			Expr COMMA Expr |
-  			Constant
+  CaseList ->		CaseList CaseStmt | ε
   
-  Constant ->	QUOTE IDENTIFIER QUOTE |
-  			INTEGER |
-  			REAL |
+  CaseStmt ->		CASE Expr Stmts | DEFAULT Stmts
+  
+  ReturnStmt->	RETURN Expr
+  
+  Expr ->			Expr LBRACKET Expr RBRACKET |
+  				IDENTIFIER LPAREN Expr RPAREN |
+  				Expr DOT IDENTIFIER |
+  				Expr ARW IDENTIFIER |
+  				ADD Expr |
+  				SUB Expr |
+  				LPAREN VarType RPAREN Expr |
+  				DADD Expr |
+  				Expr DADD |
+  				DSUB Expr |
+  				Expr DSUB |
+  				MUL Expr |
+  				BAND Expr |
+  				NOT Expr |
+  				BNOT Expr |
+  				Expr DIV Expr |
+  				Expr MUL Expr |
+  				Expr MOD Expr |
+  				Expr ADD Expr |
+  				Expr SUB Expr |
+  				Expr SHL Expr |
+  				Expr SHR Expr |
+  				Expr GT Expr |
+  				Expr GE Expr |
+  				Expr LT Expr |
+  				Expr LE Expr |
+  				Expr EQ Expr |
+  				Expr NEQ Expr |
+  				Expr BAND Expr |
+  				Expr BXOR Expr |
+  				Expr BOR Expr |
+  				Expr AND Expr |
+  				Expr OR Expr |
+  				Expr QUES Expr COLON Expr |
+  				Expr ASSIGN Expr |
+  				Expr DIVEQ Expr |
+  				Expr MULEQ Expr |
+  				Expr MODEQ Expr |
+  				Expr ADDEQ Expr |
+  				Expr SUBEQ Expr |
+  				Expr SHLEQ Expr |
+  				Expr SHREQ Expr |
+  				Expr BANDEQ Expr |
+  				Expr BXOREQ Expr |
+  				Expr BOREQ Expr |
+  				Expr COMMA Expr |
+  				QUOTE IDENTIFIER QUOTE |
+  				INTEGER |
+  				REAL |
   ```
   
   

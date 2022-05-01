@@ -49,27 +49,142 @@ extern llvm::LLVMContext Context;
 //has methods to create new instructions.
 extern llvm::IRBuilder<> IRBuilder;
 
+//TypedefTable class
+//Since LLVM doesn't support "typedef" explicitly,
+//we need to implement it manually.
+using TypedefTable = std::map<std::string, llvm::Type*>;
+
+//VariableTable class
+//Since LLVM doesn't support visiting all alloca instances explicitly,
+//we need to implement it manually.
+using VariableTable = std::map<std::string, llvm::AllocaInst*>;
+
+//Similar to VariableTable, but for llvm::GlobalVariable*
+using GlobalVariableTable = std::map<std::string, llvm::GlobalVariable*>;
+
 //CodeGenerator class
 class CodeGenerator {
 public:
 	llvm::Module* Module;
-	llvm::Function* GlobalField, * Printf, * Scanf;
-	std::stack<llvm::Function*> FuncStack;
+private:
+	std::vector<llvm::Function*> FuncStack;//global function symbol table
+	std::vector<TypedefTable*> TypedefStack;//typedef symbol table
+	std::vector<VariableTable*> VariableStack;//local variable symbol table
+	GlobalVariableTable* GlobalVarTable;
 	unsigned int AddrSpace;
-	
+public:
 	//Constructor
 	CodeGenerator(void) :
 		Module(new llvm::Module("main", Context)),
-		GlobalField(NULL),
-		Printf(NULL),
-		Scanf(NULL),
+		FuncStack(),
+		TypedefStack(),
+		VariableStack(),
+		GlobalVarTable(NULL),
 		AddrSpace(this->Module->getDataLayout().getAllocaAddrSpace())
 	{}
+
+	//Create and push an empty TypedefTable
+	void PushTypedefTable(void) {
+		this->TypedefStack.push_back(new TypedefTable);
+	}
+
+	//Remove the last TypedefTable
+	void PopTypedefTable(void) {
+		if (this->TypedefStack.size() == 0) return;
+		delete this->TypedefStack.back();
+		this->TypedefStack.pop_back();
+	}
+
+	//Find the llvm::Type* instance for the given name
+	llvm::Type* FindType(std::string Name) {
+		for (auto TableIter = this->TypedefStack.end() - 1; TableIter >= this->TypedefStack.begin(); TableIter--) {
+			auto PairIter = (**TableIter).find(Name);
+			if (PairIter != (**TableIter).end())
+				return PairIter->second;
+		}
+		return NULL;
+	}
+
+	//Add an item to the current typedef symbol table
+	//If an old value exists (i.e., conflict), return false
+	bool AddType(std::string Name, llvm::Type* Type) {
+		if (this->TypedefStack.size() == 0) return false;
+		auto& TopTable = *(this->TypedefStack.back());
+		auto PairIter = TopTable.find(Name);
+		if (PairIter != TopTable.end())
+			return false;
+		TopTable[Name] = Type;
+		return true;
+	}
+
+	//Create and push an empty VariableTable
+	void PushVariableTable(void) {
+		this->VariableStack.push_back(new VariableTable);
+	}
+
+	//Remove the last VariableTable
+	void PopVariableTable(void) {
+		if (this->VariableStack.size() == 0) return;
+		delete this->VariableStack.back();
+		this->VariableStack.pop_back();
+	}
+
+	//Find the llvm::AllocaInst* instance for the given name
+	llvm::AllocaInst* FindLocalVariable(std::string Name) {
+		for (auto TableIter = this->VariableStack.end() - 1; TableIter >= this->VariableStack.begin(); TableIter--) {
+			auto PairIter = (**TableIter).find(Name);
+			if (PairIter != (**TableIter).end())
+				return PairIter->second;
+		}
+		return NULL;
+	}
+
+	//Find the llvm::GlobalVariable* instance for the given name
+	llvm::GlobalVariable* FindGlobalVariable(std::string Name) {
+		auto PairIter = (*this->GlobalVarTable).find(Name);
+		if (PairIter != (*this->GlobalVarTable).end())
+			return PairIter->second;
+		return NULL;
+	}
+
+	//Add an item to the current variable symbol table
+	//If an old value exists (i.e., conflict), return false
+	bool AddVariable(std::string Name, llvm::Value* Variable) {
+		//If the Variable stack is empty, add this variable to the global scope.
+		//Otherwise, add this variable to the local scope.
+		if (this->VariableStack.size() == 0) {
+			auto& TopTable = *(this->GlobalVarTable);
+			auto PairIter = TopTable.find(Name);
+			if (PairIter != TopTable.end())
+				return false;
+			TopTable[Name] = (llvm::GlobalVariable*)Variable;
+			return true;
+		}
+		else {
+			auto& TopTable = *(this->VariableStack.back());
+			auto PairIter = TopTable.find(Name);
+			if (PairIter != TopTable.end())
+				return false;
+			TopTable[Name] = (llvm::AllocaInst*)Variable;
+			return true;
+		}
+	}
+
+	//Push a new function
+	void PushFunction(llvm::Function* Func) {
+		this->FuncStack.push_back(Func);
+	}
+
+	//Remove the last function
+	void PopFunction(void) {
+		if (this->FuncStack.size() == 0) return;
+		this->FuncStack.pop_back();
+	}
 
 	//Get the current function
 	llvm::Function* GetCurrentFunction(void) {
 		if (this->FuncStack.size())
-			return this->FuncStack.top();
+			return this->FuncStack.back();
 		else
 			return NULL;
 	}
@@ -102,8 +217,17 @@ public:
 		IRBuilder.CreateRetVoid();
 		this->FuncStack.pop();*/
 
+		//Initialize symbol table
+		this->PushTypedefTable();
+		this->GlobalVarTable = new GlobalVariableTable;
+
 		//Generate code
 		Root.CodeGen(*this);
+
+		//Delete symbol table
+		this->PopTypedefTable();
+		delete this->GlobalVarTable;
+		this->GlobalVarTable = NULL;
 
 		//Print result
 		this->Module->print(llvm::errs(), NULL);
