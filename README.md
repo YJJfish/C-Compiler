@@ -197,6 +197,8 @@ In conclusion, The grammar of our language is:
   SWITCH			"switch"
   CASE			"case"
   DEFAULT			"default"
+  CONTINUE		"continue"
+  BREAK			"break"
   RETURN			"return"
   REAL			[0-9]+\.[0-9]+
   INTERGER		[0-9]+
@@ -263,7 +265,7 @@ In conclusion, The grammar of our language is:
   
   Stmts ->		Stmts Stmt SEMI | ε
   
-  Stmt ->			Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | ReturnStmt | Block | VarDecl | TypeDecl | ε
+  Stmt ->			Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | BreakStmt | ContinueStmt |ReturnStmt | Block | VarDecl | TypeDecl | ε
   
   IfStmt ->		IF LPAREN Expr RPAREN Stmt |
   				IF LPAREN Expr RPAREN Stmt ELSE Stmt
@@ -279,6 +281,10 @@ In conclusion, The grammar of our language is:
   CaseList ->		CaseList CaseStmt | ε
   
   CaseStmt ->		CASE Expr Stmts | DEFAULT Stmts
+  
+  ContinueStmt ->	CONTINUE
+  
+  BreakStmt ->	BREAK
   
   ReturnStmt->	RETURN Expr
   

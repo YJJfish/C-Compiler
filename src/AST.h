@@ -317,6 +317,45 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
 
+	//While statement
+	class WhileStmt : public Stmt {
+	public:
+		//Loop condition and loop body
+		Expr* _Condition;
+		Stmt* _LoopBody;
+
+		WhileStmt(Expr* __Condition, Stmt* __LoopBody) : _Condition(__Condition), _LoopBody(__LoopBody) {}
+		~WhileStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Do statement
+	class DoStmt : public Stmt {
+	public:
+		//Loop condition and loop body
+		Stmt* _LoopBody;
+		Expr* _Condition;
+
+		DoStmt(Stmt* __LoopBody, Expr* __Condition) : _LoopBody(__LoopBody), _Condition(__Condition) {}
+		~DoStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//For statement
+	class ForStmt : public Stmt {
+	public:
+		//For-initial, loop condition, for-tail and loop body
+		Stmt* _Initial;
+		Expr* _Condition;
+		Expr* _Tail;
+		Stmt* _LoopBody;
+
+		ForStmt(Stmt* __Initial, Expr* __Condition, Expr* __Tail, Stmt* __LoopBody) :
+			_Initial(__Initial), _Condition(__Condition), _Tail(__Tail), _LoopBody(__LoopBody) {}
+		~ForStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
 	//Pure virtual class for expression
 	class Expr : public Stmt {
 	public:

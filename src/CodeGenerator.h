@@ -67,9 +67,11 @@ class CodeGenerator {
 public:
 	llvm::Module* Module;
 private:
-	std::vector<llvm::Function*> FuncStack;//global function symbol table
-	std::vector<TypedefTable*> TypedefStack;//typedef symbol table
-	std::vector<VariableTable*> VariableStack;//local variable symbol table
+	std::vector<llvm::Function*> FuncStack;				//Global function symbol table
+	std::vector<TypedefTable*> TypedefStack;			//Typedef symbol table
+	std::vector<VariableTable*> VariableStack;			//Local variable symbol table
+	std::vector<llvm::BasicBlock*> ContinueBlockStack;	//Store blocks for "continue" statement
+	std::vector<llvm::BasicBlock*> BreakBlockStack;		//Store blocks for "break" statement
 	GlobalVariableTable* GlobalVarTable;
 	unsigned int AddrSpace;
 public:
@@ -79,6 +81,8 @@ public:
 		FuncStack(),
 		TypedefStack(),
 		VariableStack(),
+		ContinueBlockStack(),
+		BreakBlockStack(),
 		GlobalVarTable(NULL),
 		AddrSpace(this->Module->getDataLayout().getAllocaAddrSpace())
 	{}
@@ -189,6 +193,35 @@ public:
 			return NULL;
 	}
 
+	//Called whenever entering a loop
+	void EnterLoop(llvm::BasicBlock* ContinueBB, llvm::BasicBlock* BreakBB) {
+		this->ContinueBlockStack.push_back(ContinueBB);
+		this->BreakBlockStack.push_back(BreakBB);
+	}
+
+	//Called whenever leaving a loop
+	void LeaveLoop(void) {
+		if (this->ContinueBlockStack.size() == 0 || this->BreakBlockStack.size() == 0) return;
+		this->ContinueBlockStack.pop_back();
+		this->BreakBlockStack.pop_back();
+	}
+
+	//Get the destination block for "continue" statements
+	llvm::BasicBlock* GetContinueBlock(void) {
+		if (this->ContinueBlockStack.size())
+			return this->ContinueBlockStack.back();
+		else
+			return NULL;
+	}
+
+	//Get the destination block for "break" statements
+	llvm::BasicBlock* GetBreakBlock(void) {
+		if (this->BreakBlockStack.size())
+			return this->BreakBlockStack.back();
+		else
+			return NULL;
+	}
+
 	//Pass the root of the ast to this function and generate code
 	void GenerateCode(AST::Program& Root) {
 		//Main function
@@ -216,7 +249,7 @@ public:
 		//Return
 		IRBuilder.CreateRetVoid();
 		this->FuncStack.pop();*/
-
+		
 		//Initialize symbol table
 		this->PushTypedefTable();
 		this->GlobalVarTable = new GlobalVariableTable;
