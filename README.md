@@ -228,6 +228,7 @@ In conclusion, The grammar of our language is:
   CONTINUE		"continue"
   BREAK			"break"
   RETURN			"return"
+  SIZEOF			"sizeof"
   REAL			[0-9]+\.[0-9]+
   INTERGER		[0-9]+
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
@@ -321,7 +322,8 @@ In conclusion, The grammar of our language is:
   ReturnStmt->	RETURN | RETURN Expr
   
   Expr ->			Expr LBRACKET Expr RBRACKET |
-  				IDENTIFIER LPAREN Expr RPAREN |
+  				SIZEOF LPAREN Expr RPAREN |
+  				IDENTIFIER LPAREN ExprList RPAREN |
   				Expr DOT IDENTIFIER |
   				Expr ARW IDENTIFIER |
   				ADD Expr |

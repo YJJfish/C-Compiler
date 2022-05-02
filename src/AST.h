@@ -62,22 +62,54 @@ namespace AST {
 		
 	/*** Expressions ***/
 	class Expr;
-		class UnaryOp;
-			class Positive;
-			class Opposite;
-			class PrefixInc;
-			class PostfixInc;
-			class PrefixDec;
-			class PostfixDec;
-			class LogicNot;
-
-
-	class BinaryOp;
-		class ArrayIndex;
+		class Subscript;
+		class SizeOf;
 		class FunctionCall;
-		
-		
-		class 
+			using ExprList = std::vector<Expr*>;
+		class StructReference;
+		class StructDereference;
+		class UnaryPlus;
+		class UnaryMinus;
+		class TypeCast;
+		class PrefixInc;
+		class PostfixInc;
+		class PrefixDec;
+		class PostfixDec;
+		class Indirection;
+		class AddressOf;
+		class LogicNot;
+		class BitwiseNot;
+		class Division;
+		class Multiplication;
+		class Modulo;
+		class Addition;
+		class Subtraction;
+		class LeftShift;
+		class RightShift;
+		class LogicGT;
+		class LogicGE;
+		class LogicLT;
+		class LogicLE;
+		class LogicEQ;
+		class LogicNEQ;
+		class BitwiseAND;
+		class BitwiseXOR;
+		class BitwiseOR;
+		class LogicAND;
+		class LogicOR;
+		class TernaryCondition;
+		class DirectAssign;
+		class DivAssign;
+		class MulAssign;
+		class ModAssign;
+		class AddAssign;
+		class SubAssign;
+		class SHLAssign;
+		class SHRAssign;
+		class BitwiseANDAssign;
+		class BitwiseXORAssign;
+		class BitwiseORAssign;
+		class CommaExpr;
 		class Constant;
 }
 
@@ -210,7 +242,7 @@ namespace AST {
 	class BuiltInType : public VarType {
 	public:
 		//Enum of built-in type
-		enum {
+		enum TypeID {
 			_Bool,
 			_Short,
 			_Int,
@@ -220,9 +252,10 @@ namespace AST {
 			_Double,
 			_Void
 		};
-		int _Type;
+		//Type ID
+		TypeID _Type;
 
-		BuiltInType(int __Type) : _Type(__Type) {}
+		BuiltInType(TypeID __Type) : _Type(__Type) {}
 		~BuiltInType(void) {}
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
@@ -476,24 +509,245 @@ namespace AST {
 
 		Expr(void) : _IsConstant(false), _IsLeftValue(false) {}
 		~Expr(void) {}
+		//This function is used to get the "value" of the expression.
 		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		//This function is used to get the "pointer" of the instance.
+		//It is used to implement the "left value" in C language,
+		//e.g., the LHS of the assignment.
+		virtual llvm::Value* CodeGenPtr(CodeGenerator& __Generator) = 0;
 	};
 
-	//Logic equal "=="
-	class LogicEqual : public Expr {
+	class Subscript : public Expr {
 	public:
-		//Expressions on left and right hand sides.
+		Expr* _Array;
+		Expr* _Index;
+	};
+	class SizeOf : public Expr {
+	public:
+		Expr* _Arg;
+	};
+	class FunctionCall : public Expr {
+	public:
+		std::string _FuncName;
+		ExprList* _ArgList;
+	};
+	class StructReference : public Expr {
+	public:
+		Expr* _Struct;
+		std::string _MemName;
+	};
+	class StructDereference : public Expr {
+	public:
+		Expr* _StructPtr;
+		std::string _MemName;
+	};
+	class UnaryPlus : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class UnaryMinus : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class TypeCast : public Expr {
+	public:
+		VarType* _VarType;
+		Expr* _Operand;
+	};
+	class PrefixInc : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class PostfixInc : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class PrefixDec : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class PostfixDec : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class Indirection : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class AddressOf : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class LogicNot : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class BitwiseNot : public Expr {
+	public:
+		Expr* _Operand;
+	};
+	class Division : public Expr {
+	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
-		LogicEqual(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
-		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
-
+	class Multiplication : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class Modulo : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class Addition : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class Subtraction : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LeftShift : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class RightShift : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicGT : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicGE : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicLT : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicLE : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicEQ : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicNEQ : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseAND : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseXOR : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseOR : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicAND : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class LogicOR : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class TernaryCondition : public Expr {
+	public:
+		Expr* _Condition;
+		Expr* _Then;
+		Expr* _Else;
+	};
+	class DirectAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class DivAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class MulAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class ModAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class AddAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class SubAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class SHLAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class SHRAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseANDAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseXORAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class BitwiseORAssign : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
+	class CommaExpr : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+	};
 	class Constant : public Expr {
 	public:
-		Constant(void) { this->_IsConstant = true; }
-		~Constant(void) {}
-		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		BuiltInType::TypeID _Type;
+		std::string _String;
+		char _Character;
+		int _Integer;
+		double _Real;
 	};
 }
