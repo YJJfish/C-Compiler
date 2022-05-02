@@ -34,6 +34,7 @@ namespace AST {
 
 	/*** Variable Types ***/
 	class VarType;
+		class DefinedType;
 		class PointerType;
 		class ArrayType;
 		class StructType;
@@ -190,6 +191,19 @@ namespace AST {
 		virtual llvm::Type* GetLLVMType(CodeGenerator& __Generator) = 0;
 		//VarType class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+	};
+
+	//Defined type. Use this class when only an identifier is given.
+	class DefinedType : public VarType {
+	public:
+		//Its name.
+		std::string _Name;
+
+		DefinedType(std::string __Name) : _Name(__Name) {}
+		~DefinedType(void) {}
+		//Return the corresponding instance of llvm::Type*.
+		//Meanwhile, it will update _LLVMType.
+		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
 	};
 
 	//Pointer type.

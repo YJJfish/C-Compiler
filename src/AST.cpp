@@ -516,9 +516,17 @@ namespace AST {
 			if (Func->getReturnType()->isVoidTy())
 				IRBuilder.CreateRetVoid();
 			else {
-				std::cout << "Return type doesn't match." << std::endl;
+				std::cout << "Expected an expression after return statement." << std::endl;
 				return NULL;
 			}
+		}
+		else {
+			llvm::Value* RetVal = TypeCasting(this->_RetVal->CodeGen(__Generator), Func->getReturnType());
+			if (!RetVal) {
+				std::cout << "The type of return value doesn't match and cannot be cast to the return type." << std::endl;
+				return NULL;
+			}
+			IRBuilder.CreateRet(RetVal);
 		}
 	}
 }

@@ -13,6 +13,42 @@
 #include <string>
 #include "CodeGenerator.h"
 
+//Type casting
+//Supported:
+//1. Int -> Int, Float, Pointer
+//2. Float -> Int, Float
+//3. Pointer -> Int, Pointer
+//Other types are not supported, and will return NULL.
+llvm::Value* TypeCasting(llvm::Value* Value, llvm::Type* Type) {
+	if (Value->getType() == Type) {
+		return Value;
+	}
+	else if (Type == IRBuilder.getInt1Ty()) {	//Int1 (bool) is special.
+		return Cast2I1(Value);
+	}
+	else if (Value->getType()->isIntegerTy() && Type->isIntegerTy()) {
+		return IRBuilder.CreateIntCast(Value, Type, true);
+	}
+	else if (Value->getType()->isIntegerTy() && Type->isFloatingPointTy()) {
+		return IRBuilder.CreateSIToFP(Value, Type);
+	}
+	else if (Value->getType()->isIntegerTy() && Type->isPointerTy()) {
+		return IRBuilder.CreateIntToPtr(Value, Type);
+	}
+	else if (Value->getType()->isFloatingPointTy() && Type->isIntegerTy()) {
+		return IRBuilder.CreateFPToSI(Value, Type);
+	}
+	else if (Value->getType()->isFloatingPointTy() && Type->isFloatingPointTy()) {
+		return IRBuilder.CreateFPCast(Value, Type);
+	}
+	else if (Value->getType()->isPointerTy() && Type->isIntegerTy()) {
+		return IRBuilder.CreatePtrToInt(Value, Type);
+	}
+	else if (Value->getType()->isPointerTy() && Type->isPointerTy()) {
+		return IRBuilder.CreatePointerCast(Value, Type);
+	}
+}
+
 //Cast a integer, or a floating-point number, or a pointer to i1 integer.
 //Return NULL if failed.
 //This function is very useful when generating a condition value for "if", "while", "for" statements.
