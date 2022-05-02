@@ -193,6 +193,29 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
 	};
 
+	//Built-in type
+	class BuiltInType : public VarType {
+	public:
+		//Enum of built-in type
+		enum {
+			_Bool,
+			_Short,
+			_Int,
+			_Long,
+			_Char,
+			_Float,
+			_Double,
+			_Void
+		};
+		int _Type;
+
+		BuiltInType(int __Type) : _Type(__Type) {}
+		~BuiltInType(void) {}
+		//Return the corresponding instance of llvm::Type*.
+		//Meanwhile, it will update _LLVMType.
+		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+	};
+
 	//Defined type. Use this class when only an identifier is given.
 	class DefinedType : public VarType {
 	public:

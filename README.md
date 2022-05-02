@@ -232,7 +232,7 @@ In conclusion, The grammar of our language is:
   INTERGER		[0-9]+
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
   STRING
-  CHAR
+  CHARACTER
   ```
 
 - Rules:
@@ -263,11 +263,14 @@ In conclusion, The grammar of our language is:
   VarType ->		_VarType |
   				CONST _VarType
   
-  _VarType ->		IDENTIFIER |
+  _VarType ->		BuiltInType |
   				STRUCT LBRACE FieldDecls RBRACE |
   				ENUM LBRACE EnmList RBRACE
   				_VarType PTR |
-  				_VarType LBRACKET INTEGER RBRACKET
+  				_VarType LBRACKET INTEGER RBRACKET |
+  				IDENTIFIER
+  
+  BuiltInType ->	BOOL | SHORT | INT | LONG | CHAR | FLOAT | DOUBLE | VOID
   
   FieldDecls ->	FieldDecls FieldDecl SEMI | ε
   
@@ -366,7 +369,7 @@ In conclusion, The grammar of our language is:
   				Constant
   
   Constant ->		STRING |
-  				CHAR |
+  				CHARACTER |
   				INTEGER |
   				REAL
   ```

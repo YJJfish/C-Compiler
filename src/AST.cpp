@@ -162,15 +162,45 @@ namespace AST {
 	llvm::Value* TypeDecl::CodeGen(CodeGenerator& __Generator) {
 		//Add an item to the current typedef symbol table
 		//If an old value exists (i.e., conflict), raise an error
-		if (__Generator.AddType(this->_Alias, this->_VarType->GetLLVMType(__Generator)))
+		llvm::Type* LLVMType = this->_VarType->GetLLVMType(__Generator);
+		if (!LLVMType) {
+			std::cout << "Typedef " << this->_Alias << " using undefined types." << std::endl;
+			return NULL;
+		}
+		if (__Generator.AddType(this->_Alias, LLVMType))
 			std::cout << "Redefinition of typename " << this->_Alias << std::endl;
 		return NULL;
+	}
+
+	//Built-in type
+	llvm::Type* BuiltInType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return this->_LLVMType;
+		switch (this->_Type) {
+		case _Bool: this->_LLVMType = IRBuilder.getInt1Ty(); break;
+		case _Short: this->_LLVMType = IRBuilder.getInt16Ty(); break;
+		case _Int: this->_LLVMType = IRBuilder.getInt32Ty(); break;
+		case _Long: this->_LLVMType = IRBuilder.getInt64Ty(); break;
+		case _Char: this->_LLVMType = IRBuilder.getInt8Ty(); break;
+		case _Float: this->_LLVMType = IRBuilder.getFloatTy(); break;
+		case _Double: this->_LLVMType = IRBuilder.getDoubleTy(); break;
+		case _Void: this->_LLVMType = IRBuilder.getVoidTy(); break;
+		default: break;
+		}
+		return this->_LLVMType;
+	}
+
+	//Defined type. Use this class when only an identifier is given.
+	llvm::Type* DefinedType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return this->_LLVMType;
+		return this->_LLVMType = __Generator.FindType(this->_Name);
 	}
 
 	//Pointer type.
 	llvm::Type* PointerType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
-			return _LLVMType;
+			return this->_LLVMType;
 		llvm::Type* BaseType = this->_BaseType->GetLLVMType(__Generator);
 		return this->_LLVMType = llvm::PointerType::get(BaseType, 0U);
 	}
@@ -178,7 +208,7 @@ namespace AST {
 	//Array type.
 	llvm::Type* ArrayType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
-			return _LLVMType;
+			return this->_LLVMType;
 		llvm::Type* BaseType = this->_BaseType->GetLLVMType(__Generator);
 		return this->_LLVMType = llvm::ArrayType::get(BaseType, this->_Length);
 	}
@@ -186,7 +216,7 @@ namespace AST {
 	//Struct type.
 	llvm::Type* StructType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
-			return _LLVMType;
+			return this->_LLVMType;
 		//Generate the body of the struct type
 		std::vector<llvm::Type*> Members;
 		for (auto FDecl : *(this->_StructBody))
@@ -198,7 +228,7 @@ namespace AST {
 	//Enum type
 	llvm::Type* EnumType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
-			return _LLVMType;
+			return this->_LLVMType;
 		//Generate the body of the enum type
 		int LastVal = -1;
 		for (auto Mem : *(this->_EnmList))
