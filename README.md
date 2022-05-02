@@ -238,7 +238,7 @@ In conclusion, The grammar of our language is:
 - Rules:
 
   ```
-  Program ->		GlobalDecls
+  Program ->		Decls
   
   Decls ->		Decls Decl SEMI| ε
   

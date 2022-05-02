@@ -48,8 +48,6 @@ namespace AST {
 	/*** Statements ***/
 	class Stmt;
 	using Stmts = std::vector<Stmt*>;
-		class Expr;
-			class BinaryExpr;
 		class IfStmt;
 		class ForStmt;
 		class WhileStmt;
@@ -64,8 +62,23 @@ namespace AST {
 		
 	/*** Expressions ***/
 	class Expr;
+		class UnaryOp;
+			class Positive;
+			class Opposite;
+			class PrefixInc;
+			class PostfixInc;
+			class PrefixDec;
+			class PostfixDec;
+			class LogicNot;
+
+
+	class BinaryOp;
+		class ArrayIndex;
+		class FunctionCall;
+		
+		
+		class 
 		class Constant;
-		class LogicEqual;
 }
 
 //Class definitions
