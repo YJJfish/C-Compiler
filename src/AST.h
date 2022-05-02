@@ -21,15 +21,15 @@ namespace AST {
 	class Program;
 	
 	/*** Declarations ***/
-	using Decls = std::vector<Decl*>;
 	class Decl;
+	using Decls = std::vector<Decl*>;
 		class FuncDecl;
-			using ArgList = std::vector<Arg*>;
 			class Arg;
+			using ArgList = std::vector<Arg*>;
 			class FuncBody;
 		class VarDecl;
-			using VarList = std::vector<VarInit*>;
 			class VarInit;
+			using VarList = std::vector<VarInit*>;
 		class TypeDecl;
 
 	/*** Variable Types ***/
@@ -37,16 +37,16 @@ namespace AST {
 		class PointerType;
 		class ArrayType;
 		class StructType;
-			using FieldDecls = std::vector<FieldDecl*>;
 			class FieldDecl;
+			using FieldDecls = std::vector<FieldDecl*>;
 			using MemList = std::vector<std::string>;
 		class EnumType;
-			using EnmList = std::vector<Enm*>;
 			class Enm;
+			using EnmList = std::vector<Enm*>;
 
 	/*** Statements ***/
-	using Stmts = std::vector<Stmt*>;
 	class Stmt;
+	using Stmts = std::vector<Stmt*>;
 		class Expr;
 			class BinaryExpr;
 		class IfStmt;
@@ -54,10 +54,17 @@ namespace AST {
 		class WhileStmt;
 		class DoStmt;
 		class SwitchStmt;
+			class CaseStmt;
+			using CaseList = std::vector<CaseStmt*>;
+		class BreakStmt;
+		class ContinueStmt;
 		class ReturnStmt;
 		class Block;
 		
-		
+	/*** Expressions ***/
+	class Expr;
+		class Constant;
+		class LogicEqual;
 }
 
 //Class definitions
@@ -356,6 +363,57 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
 
+	//Switch statement
+	class SwitchStmt : public Stmt {
+	public:
+		//Switch-matcher and case statement list
+		Expr* _Matcher;
+		CaseList* _CaseList;
+
+		SwitchStmt(Expr* __Matcher, CaseList* __CaseList) : _Matcher(__Matcher), _CaseList(__CaseList) {}
+		~SwitchStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Case statement in switch statement
+	class CaseStmt : public Stmt {
+	public:
+		//Case condition. Set NULL if the condition is "default".
+		Expr* _Condition;
+		//The statements to be excuted.
+		Stmts* _Content;
+		
+		CaseStmt(Expr* __Condition, Stmts* __Content) : _Condition(__Condition), _Content(__Content) {}
+		~CaseStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Continue statement
+	class ContinueStmt : public Stmt {
+	public:
+		ContinueStmt(void) {}
+		~ContinueStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Break statement
+	class BreakStmt : public Stmt {
+	public:
+		BreakStmt(void) {}
+		~BreakStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Return statement
+	class ReturnStmt : public Stmt {
+	public:
+		//The expression to be returned (if any)
+		Expr* _RetVal;
+		ReturnStmt(Expr* __RetVal = NULL) : _RetVal(__RetVal) {}
+		~ReturnStmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
 	//Pure virtual class for expression
 	class Expr : public Stmt {
 	public:
@@ -366,8 +424,26 @@ namespace AST {
 		//instead of llvm::Value*
 		bool _IsLeftValue;
 
-		Expr(void) {}
+		Expr(void) : _IsConstant(false), _IsLeftValue(false) {}
 		~Expr(void) {}
-		llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+	};
+
+	//Logic equal "=="
+	class LogicEqual : public Expr {
+	public:
+		//Expressions on left and right hand sides.
+		Expr* _LHS;
+		Expr* _RHS;
+
+		LogicEqual(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	class Constant : public Expr {
+	public:
+		Constant(void) { this->_IsConstant = true; }
+		~Constant(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
 	};
 }

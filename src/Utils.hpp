@@ -38,3 +38,26 @@ llvm::AllocaInst* CreateEntryBlockAlloca(llvm::Function* Func, std::string VarNa
 	llvm::IRBuilder<> TmpB(&Func->getEntryBlock(), Func->getEntryBlock().begin());
 	return TmpB.CreateAlloca(VarType, 0, VarName);
 }
+
+//Create an equal-comparison instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+llvm::Value* CreateCmpEQ(llvm::Value* LHS, llvm::Value* RHS) {
+	return NULL;
+}
+
+//Create an unconditional branch if the current block doesn't have a terminator.
+//This function is safer than IRBuilder.CreateBr(llvm::BasicBlock* BB),
+//because if the current block already has a terminator, it does nothing.
+//For example, when generating if-statement, we create three blocks: ThenBB, ElseBB, MergeBB.
+//At the end of ThenBB and ElseBB, an unconditional branch to MergeBB needs to be created respectively,
+//UNLESS ThenBB or ElseBB is already terminated.
+//e.g.
+//	if (i) break;
+//	else continue;
+llvm::BranchInst* TerminateBlockByBr(llvm::BasicBlock* BB) {
+	//If not terminated, jump to the target block
+	if (!IRBuilder.GetInsertBlock()->getTerminator())
+		return IRBuilder.CreateBr(BB);
+	else
+		return NULL;
+}

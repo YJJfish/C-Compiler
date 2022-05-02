@@ -46,7 +46,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     a;				//What does this mean? An expression or an empty declaration "int;"?
     ```
 
-    One resolution is to inhibit empty variable declaration. However, in our language, we resolve this conflict by make yacc prefer expressions with a single variable name to empty variable declarations.
+    One resolution is to inhibit empty variable declarations. However, in our language, we resolve this conflict by make yacc prefer expressions with a single variable name to empty variable declarations.
 
     ```C++
     /*In function body*/
@@ -63,7 +63,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     /*global field*/
     typedef int a;		//"a" is an alias for type "int"
     float a;			//"a" is a variable of type "float"
-    a;					//This is an empty declaration equivalent to "int;"
+    a;					//OK. This is an empty declaration equivalent to "int;"
     ```
 
 5. For simplicity, we rewrite the grammar of array definition. In C, arrays are defined as follows:
@@ -114,18 +114,45 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int[2][2] c = {{1,2}, {3,4}};	//Illegal
     int[2] d = {1,2};				//Illegal
     int[2] e = 1;					//Illegal
+    struct {int x, y;} p = {1,2};	//Illegal
     ```
 
 7. For simplicity, in our language, a semicolon should be added to the end of a pair of braces. In C, there is no need to write semicolons after braces.
 
     ```C
     int abs(int x){
-    	if (x > 0){
+    	if (x > 0) {
     		return x;
     	};
-    	else{
+    	else {
     		return -x;
     	};
+    };
+    ```
+
+8. In our language, expressions are a special type of statements. Not all statements have return values, but expressions must have return values (including `void` value).
+
+    Variable declarations, function declarations are statements, but not expressions. This means they do not have return values, and should not exist in places where expressions are expected.
+
+    For example, `for` statement expects one statement, two expressions and one statement:
+
+    ```C
+    for (statement; expression; expression) statement;
+    ```
+
+    The following code shows some legal and illegal usage of `for` statement:
+
+    ```C
+    for (int i = 0; i < n; i++) sum += i;	//Legal
+    
+    int i; for (i = 0; foo1(i); foo2(i)) foo3(i);	//Legal
+    
+    for (int i = 0; int j = i; i++);		//"int j = i" is illegal
+    
+    for (int i = 0; i < n; int j = i++);	//"int j = i++" is illegal
+    
+    for (int i = 0; i < n; i++){			//Legal
+        int i = 10;	//We allow redefining variables in the loop body
     };
     ```
 
@@ -140,7 +167,8 @@ In conclusion, The grammar of our language is:
   ```
   COMMA			","
   DOT				"."
-  QUOTE			"\""
+  SQUOTE			"\'"
+  DQUOTE			"\""
   SEMI			";"
   LPAREN			"("
   RPAREN			")"
@@ -203,7 +231,8 @@ In conclusion, The grammar of our language is:
   REAL			[0-9]+\.[0-9]+
   INTERGER		[0-9]+
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
-  
+  STRING
+  CHAR
   ```
 
 - Rules:
@@ -270,7 +299,7 @@ In conclusion, The grammar of our language is:
   IfStmt ->		IF LPAREN Expr RPAREN Stmt |
   				IF LPAREN Expr RPAREN Stmt ELSE Stmt
   
-  ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt
+  ForStmt ->		FOR LPAREN Stmt SEMI Expr SEMI Expr LPAREN Stmt
   
   WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
   
@@ -280,13 +309,13 @@ In conclusion, The grammar of our language is:
   
   CaseList ->		CaseList CaseStmt | ε
   
-  CaseStmt ->		CASE Expr Stmts | DEFAULT Stmts
+  CaseStmt ->		CASE Expr COLON Stmts | DEFAULT COLON Stmts
   
   ContinueStmt ->	CONTINUE
   
   BreakStmt ->	BREAK
   
-  ReturnStmt->	RETURN Expr
+  ReturnStmt->	RETURN | RETURN Expr
   
   Expr ->			Expr LBRACKET Expr RBRACKET |
   				IDENTIFIER LPAREN Expr RPAREN |
@@ -334,9 +363,12 @@ In conclusion, The grammar of our language is:
   				Expr BXOREQ Expr |
   				Expr BOREQ Expr |
   				Expr COMMA Expr |
-  				QUOTE IDENTIFIER QUOTE |
+  				Constant
+  
+  Constant ->		STRING |
+  				CHAR |
   				INTEGER |
-  				REAL |
+  				REAL
   ```
   
   

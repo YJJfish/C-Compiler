@@ -218,10 +218,15 @@ namespace AST {
 		__Generator.PushVariableTable();
 		//Generate the statements in Block, one by one.
 		for (auto& Stmt : *(this->_Content))
-			if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
+			//If the current block already has a terminator,
+			//i.e. a "break" statement is generated, stop;
+			//Otherwise, continue generating.
+			if (IRBuilder.GetInsertBlock()->getTerminator())
+				break;
+			else if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
 				Stmt->CodeGen(__Generator);
+		__Generator.PopVariableTable();
 		__Generator.PopTypedefTable();
-		__Generator.PopFunction();
 		return NULL;
 	}
 
@@ -250,10 +255,10 @@ namespace AST {
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_Then->CodeGen(__Generator);
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 		}
-		IRBuilder.CreateBr(MergeBB);
+		TerminateBlockByBr(MergeBB);
 		//Generate code in the "Else" block
 		CurrentFunc->getBasicBlockList().push_back(ElseBB);
 		IRBuilder.SetInsertPoint(ElseBB);
@@ -261,10 +266,10 @@ namespace AST {
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_Else->CodeGen(__Generator);
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 		}
-		IRBuilder.CreateBr(ElseBB);
+		TerminateBlockByBr(MergeBB);
 		//Finish "Merge" block
 		CurrentFunc->getBasicBlockList().push_back(MergeBB);
 		IRBuilder.SetInsertPoint(MergeBB);
@@ -294,17 +299,16 @@ namespace AST {
 		//Generate code in the "WhileLoop" block
 		CurrentFunc->getBasicBlockList().push_back(WhileLoopBB);
 		IRBuilder.SetInsertPoint(WhileLoopBB);
-		
 		if (this->_LoopBody) {
 			__Generator.EnterLoop(WhileCondBB, WhileEndBB);	//Don't forget to call "EnterLoop"
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_LoopBody->CodeGen(__Generator);
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
-		IRBuilder.CreateBr(WhileCondBB);
+		TerminateBlockByBr(WhileCondBB);
 		//Finish "WhileEnd" block
 		CurrentFunc->getBasicBlockList().push_back(WhileEndBB);
 		IRBuilder.SetInsertPoint(WhileEndBB);
@@ -328,11 +332,11 @@ namespace AST {
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_LoopBody->CodeGen(__Generator);
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
-		IRBuilder.CreateBr(DoCondBB);
+		TerminateBlockByBr(DoCondBB);
 		//Evaluate the loop condition (cast the type to i1 if necessary).
 		//Since we don't allow variable declarations in if-condition (because we only allow expressions there),
 		//we don't need to push a symbol table
@@ -366,7 +370,7 @@ namespace AST {
 			__Generator.PushVariableTable();
 			this->_Initial->CodeGen(__Generator);
 		}
-		IRBuilder.CreateBr(ForCondBB);
+		TerminateBlockByBr(ForCondBB);
 		//Generate code in the "ForCond" block
 		CurrentFunc->getBasicBlockList().push_back(ForCondBB);
 		IRBuilder.SetInsertPoint(ForCondBB);
@@ -391,11 +395,12 @@ namespace AST {
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_LoopBody->CodeGen(__Generator);
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
-		IRBuilder.CreateBr(ForTailBB);
+		//If not terminated, jump to "ForTail"
+		TerminateBlockByBr(ForTailBB);
 		//Generate code in the "ForTail" block
 		CurrentFunc->getBasicBlockList().push_back(ForTailBB);
 		IRBuilder.SetInsertPoint(ForTailBB);
@@ -406,11 +411,114 @@ namespace AST {
 		CurrentFunc->getBasicBlockList().push_back(ForEndBB);
 		IRBuilder.SetInsertPoint(ForEndBB);
 		if (this->_Initial) {
+			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
 		}
 		return NULL;
 	}
 
-	//
+	//Switch statement
+	llvm::Value* SwitchStmt::CodeGen(CodeGenerator& __Generator) {
+		llvm::Function* CurrentFunc = __Generator.GetCurrentFunction();
+		//Evaluate condition
+		//Since we don't allow variable declarations in switch-matcher (because we only allow expressions there),
+		//we don't need to push a symbol table.
+		llvm::Value* Matcher = this->_Matcher->CodeGen(__Generator);
+		//Create one block for each case statement.
+		std::vector<llvm::BasicBlock*> CaseBB;
+		for (int i = 0; i < this->_CaseList->size(); i++)
+			CaseBB.push_back(llvm::BasicBlock::Create(Context, "Case" + std::to_string(i)));
+		//Create an extra block for SwitchEnd
+		CaseBB.push_back(llvm::BasicBlock::Create(Context, "SwitchEnd"));
+		//Create one block for each comparison.
+		std::vector<llvm::BasicBlock*> ComparisonBB;
+		ComparisonBB.push_back(IRBuilder.GetInsertBlock());
+		for (int i = 1; i < this->_CaseList->size(); i++)
+			ComparisonBB.push_back(llvm::BasicBlock::Create(Context, "Comparison" + std::to_string(i)));
+		ComparisonBB.push_back(CaseBB.back());
+		//Generate branches
+		for (int i = 0; i < this->_CaseList->size(); i++) {
+			if (i) {
+				CurrentFunc->getBasicBlockList().push_back(ComparisonBB[i]);
+				IRBuilder.SetInsertPoint(ComparisonBB[i]);
+			}
+			if (this->_CaseList->at(i)->_Condition)	//Have condition
+				IRBuilder.CreateCondBr(
+					CreateCmpEQ(Matcher, this->_CaseList->at(i)->_Condition->CodeGen(__Generator)),
+					CaseBB[i],
+					ComparisonBB[i + 1]
+				);
+			else									//Default
+				IRBuilder.CreateBr(CaseBB[i]);
+		}
+		//Generate code for each case statement
+		__Generator.PushTypedefTable();
+		__Generator.PushVariableTable();
+		for (int i = 0; i < this->_CaseList->size(); i++) {
+			CurrentFunc->getBasicBlockList().push_back(CaseBB[i]);
+			IRBuilder.SetInsertPoint(CaseBB[i]);
+			__Generator.EnterLoop(CaseBB[i + 1], CaseBB.back());
+			this->_CaseList->at(i)->CodeGen(__Generator);
+			__Generator.LeaveLoop();
+		}
+		__Generator.PopVariableTable();
+		__Generator.PopTypedefTable();
+		//Finish "SwitchEnd" block
+		CurrentFunc->getBasicBlockList().push_back(CaseBB.back());
+		IRBuilder.SetInsertPoint(CaseBB.back());
+		return NULL;
+	}
+
+	//Case statement in switch statement
+	llvm::Value* CaseStmt::CodeGen(CodeGenerator& __Generator) {
+		//Generate the statements, one by one.
+		for (auto& Stmt : *(this->_Content))
+			//If the current block already has a terminator,
+			//i.e. a "break" statement is generated, stop;
+			//Otherwise, continue generating.
+			if (IRBuilder.GetInsertBlock()->getTerminator())
+				break;
+			else if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
+				Stmt->CodeGen(__Generator);
+		//If not terminated, jump to the next case block
+		TerminateBlockByBr(__Generator.GetContinueBlock());
+		return NULL;
+	}
+
+	//Continue statement
+	llvm::Value* ContinueStmt::CodeGen(CodeGenerator& __Generator) {
+		llvm::BasicBlock* ContinueTarget = __Generator.GetContinueBlock();
+		if (ContinueTarget)
+			IRBuilder.CreateBr(ContinueTarget);
+		else
+			std::cout << "Continue statement should only be used in loops or switch statements." << std::endl;
+		return NULL;
+	}
+
+	//Break statement
+	llvm::Value* BreakStmt::CodeGen(CodeGenerator& __Generator) {
+		llvm::BasicBlock* BreakTarget = __Generator.GetBreakBlock();
+		if (BreakTarget)
+			IRBuilder.CreateBr(BreakTarget);
+		else
+			std::cout << "Break statement should only be used in loops or switch statements." << std::endl;
+		return NULL;
+	}
+
+	//Return statement
+	llvm::Value* ReturnStmt::CodeGen(CodeGenerator& __Generator) {
+		llvm::Function* Func = __Generator.GetCurrentFunction();
+		if (!Func) {
+			std::cout << "Return statement should only be used in function bodies." << std::endl;
+			return NULL;
+		}
+		if (this->_RetVal == NULL) {
+			if (Func->getReturnType()->isVoidTy())
+				IRBuilder.CreateRetVoid();
+			else {
+				std::cout << "Return type doesn't match." << std::endl;
+				return NULL;
+			}
+		}
+	}
 }
