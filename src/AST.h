@@ -12,6 +12,7 @@
 #include <map>
 #include <stack>
 #include <string>
+#include <exception>
 #include "CodeGenerator.h"
 
 //Forward declarations
@@ -546,310 +547,389 @@ namespace AST {
 	public:
 		std::string _FuncName;
 		ExprList* _ArgList;
-
+		FunctionCall(const std::string __FuncName, ExprList* __ArgList) : _FuncName(__FuncName), _ArgList(__ArgList) {}
+		~FunctionCall(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class StructReference : public Expr {
 	public:
 		Expr* _Struct;
 		std::string _MemName;
-
+		StructReference(Expr* __Struct, const std::string __MemName) : _Struct(__Struct), _MemName(__MemName) {}
+		~StructReference(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class StructDereference : public Expr {
 	public:
 		Expr* _StructPtr;
 		std::string _MemName;
-
+		StructDereference(Expr* __StructPtr, const std::string __MemName) : _StructPtr(__StructPtr), _MemName(__MemName) {}
+		~StructDereference(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class UnaryPlus : public Expr {
 	public:
 		Expr* _Operand;
-
+		UnaryPlus(Expr* __Operand) : _Operand(__Operand) {}
+		~UnaryPlus(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class UnaryMinus : public Expr {
 	public:
 		Expr* _Operand;
-
+		UnaryMinus(Expr* __Operand) : _Operand(__Operand) {}
+		~UnaryMinus(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class TypeCast : public Expr {
 	public:
 		VarType* _VarType;
 		Expr* _Operand;
-
+		TypeCast(VarType* __VarType, Expr* __Operand) : _VarType(__VarType), _Operand(__Operand) {}
+		~TypeCast(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class PrefixInc : public Expr {
 	public:
 		Expr* _Operand;
-
+		PrefixInc(Expr* __Operand) : _Operand(__Operand) {}
+		~PrefixInc(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class PostfixInc : public Expr {
 	public:
 		Expr* _Operand;
-
+		PostfixInc(Expr* __Operand) : _Operand(__Operand) {}
+		~PostfixInc(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class PrefixDec : public Expr {
 	public:
 		Expr* _Operand;
-
+		PrefixDec(Expr* __Operand) : _Operand(__Operand) {}
+		~PrefixDec(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class PostfixDec : public Expr {
 	public:
 		Expr* _Operand;
-
+		PostfixDec(Expr* __Operand) : _Operand(__Operand) {}
+		~PostfixDec(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Indirection : public Expr {
 	public:
 		Expr* _Operand;
-
+		Indirection(Expr* __Operand) : _Operand(__Operand) {}
+		~Indirection(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class AddressOf : public Expr {
 	public:
 		Expr* _Operand;
-
+		AddressOf(Expr* __Operand) : _Operand(__Operand) {}
+		~AddressOf(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicNot : public Expr {
 	public:
 		Expr* _Operand;
-
+		LogicNot(Expr* __Operand) : _Operand(__Operand) {}
+		~LogicNot(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseNot : public Expr {
 	public:
 		Expr* _Operand;
-
+		BitwiseNot(Expr* __Operand) : _Operand(__Operand) {}
+		~BitwiseNot(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Division : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		Division(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~Division(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Multiplication : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		Multiplication(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~Multiplication(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Modulo : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		Modulo(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~Modulo(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Addition : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		Addition(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~Addition(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Subtraction : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		Subtraction(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~Subtraction(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LeftShift : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LeftShift(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LeftShift(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class RightShift : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		RightShift(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~RightShift(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicGT : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicGT(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicGT(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicGE : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicGE(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicGE(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicLT : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicLT(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicLT(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicLE : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicLE(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicLE(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicEQ : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicEQ(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicEQ(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicNEQ : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicNEQ(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicNEQ(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseAND : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseAND(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseAND(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseXOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseXOR(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseXOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseOR(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicAND : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicAND(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicAND(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class LogicOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		LogicOR(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~LogicOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class TernaryCondition : public Expr {
 	public:
 		Expr* _Condition;
 		Expr* _Then;
 		Expr* _Else;
-
+		TernaryCondition(Expr* __Condition, Expr* __Then, Expr* __Else) : _Condition(__Condition), _Then(__Then), _Else(__Else) {}
+		~TernaryCondition(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class DirectAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		DirectAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~DirectAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class DivAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		DivAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~DivAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class MulAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		MulAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~MulAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class ModAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		ModAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~ModAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class AddAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		AddAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~AddAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class SubAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		SubAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~SubAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class SHLAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		SHLAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~SHLAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
@@ -857,57 +937,77 @@ namespace AST {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		SHRAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~SHRAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseANDAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseANDAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseANDAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseXORAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseXORAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseXORAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class BitwiseORAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		BitwiseORAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~BitwiseORAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class CommaExpr : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
-
+		CommaExpr(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~CommaExpr(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Variable : public Expr {
 	public:
 		std::string _Name;
-
+		Variable(const std::string __Name) : _Name(__Name) {}
+		~Variable(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
 	class Constant : public Expr {
 	public:
 		BuiltInType::TypeID _Type;
-		std::string _String;
+		bool _Bool;
 		char _Character;
 		int _Integer;
 		double _Real;
-
+		Constant(bool __Bool) :
+			_Type(BuiltInType::TypeID::_Bool), _Bool(__Bool), _Character('\0'), _Integer(0), _Real(0.0) {}
+		Constant(char __Character) :
+			_Type(BuiltInType::TypeID::_Char), _Bool(false), _Character(__Character), _Integer(0), _Real(0.0) {}
+		Constant(int __Integer) :
+			_Type(BuiltInType::TypeID::_Int), _Bool(false), _Character('\0'), _Integer(__Integer), _Real(0.0) {}
+		Constant(double __Real) :
+			_Type(BuiltInType::TypeID::_Double), _Bool(false), _Character('\0'), _Integer(0), _Real(__Real) {}
+		~Constant(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};

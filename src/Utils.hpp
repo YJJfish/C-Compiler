@@ -15,8 +15,8 @@
 
 //Type casting
 //Supported:
-//1. Int -> Int, Float, Pointer
-//2. Float -> Int, Float
+//1. Int -> Int, FP, Pointer
+//2. FP -> Int, FP
 //3. Pointer -> Int, Pointer
 //Other types are not supported, and will return NULL.
 llvm::Value* TypeCasting(llvm::Value* Value, llvm::Type* Type) {
@@ -27,10 +27,11 @@ llvm::Value* TypeCasting(llvm::Value* Value, llvm::Type* Type) {
 		return Cast2I1(Value);
 	}
 	else if (Value->getType()->isIntegerTy() && Type->isIntegerTy()) {
-		return IRBuilder.CreateIntCast(Value, Type, true);
+		return IRBuilder.CreateIntCast(Value, Type, !Value->getType()->isIntegerTy(1));
 	}
 	else if (Value->getType()->isIntegerTy() && Type->isFloatingPointTy()) {
-		return IRBuilder.CreateSIToFP(Value, Type);
+		return Value->getType()->isIntegerTy(1) ?
+			IRBuilder.CreateUIToFP(Value, Type) : IRBuilder.CreateSIToFP(Value, Type);
 	}
 	else if (Value->getType()->isIntegerTy() && Type->isPointerTy()) {
 		return IRBuilder.CreateIntToPtr(Value, Type);
@@ -47,6 +48,88 @@ llvm::Value* TypeCasting(llvm::Value* Value, llvm::Type* Type) {
 	else if (Value->getType()->isPointerTy() && Type->isPointerTy()) {
 		return IRBuilder.CreatePointerCast(Value, Type);
 	}
+	else {
+		return NULL;
+	}
+}
+
+//Upgrade the type, given another type.
+//1. int1
+//2. int8
+//3. int16
+//4. int32
+//5. int64
+//6. float
+//7. double
+//Return NULL if failed.
+//For example,
+//	TypeUpgrading(int16, int32) -> int32
+//	TypeUpgrading(int32, double) -> double
+//	TypeUpgrading(int64, float) -> float
+llvm::Value* TypeUpgrading(llvm::Value* Value, llvm::Type* Type) {
+	if (Value->getType()->isIntegerTy() && Type->isIntegerTy()) {
+		size_t Bit1 = ((llvm::IntegerType*)Value->getType())->getBitWidth();
+		size_t Bit2 = ((llvm::IntegerType*)Type)->getBitWidth();
+		if (Bit1 < Bit2)
+			return IRBuilder.CreateIntCast(Value, Type, Bit1 != 1);
+		else return Value;
+	}
+	else if (Value->getType()->isFloatingPointTy() && Type->isFloatingPointTy()) {
+		if (Value->getType()->isFloatTy() && Type->isDoubleTy())
+			return IRBuilder.CreateFPCast(Value, Type);
+		else return Value;
+	}
+	else if (Value->getType()->isIntegerTy() && Type->isFloatingPointTy()) {
+		return Value->getType()->isIntegerTy(1) ?
+			IRBuilder.CreateUIToFP(Value, Type) : IRBuilder.CreateSIToFP(Value, Type);
+	}
+	else if (Value->getType()->isFloatingPointTy() && Type->isIntegerTy()) {
+		return Value;
+	}
+	else return NULL;
+}
+
+//Upgrade two types at the same time.
+//1. int1
+//2. int8
+//3. int16
+//4. int32
+//5. int64
+//6. float
+//7. double
+//Return false if failed.
+//For example,
+//	TypeUpgrading(int16, int32) -> int32
+//	TypeUpgrading(int32, double) -> double
+//	TypeUpgrading(int64, float) -> float
+bool TypeUpgrading(llvm::Value*& Value1, llvm::Value*& Value2) {
+	if (Value1->getType()->isIntegerTy() && Value2->getType()->isIntegerTy()) {
+		size_t Bit1 = ((llvm::IntegerType*)Value1->getType())->getBitWidth();
+		size_t Bit2 = ((llvm::IntegerType*)Value1->getType())->getBitWidth();
+		if (Bit1 < Bit2)
+			Value1 = IRBuilder.CreateIntCast(Value1, Value2->getType(), Bit1 != 1);
+		else if (Bit1 > Bit2)
+			Value2 = IRBuilder.CreateIntCast(Value2, Value1->getType(), Bit2 != 1);
+		return true;
+	}
+	else if (Value1->getType()->isFloatingPointTy() && Value2->getType()->isFloatingPointTy()) {
+		if (Value1->getType()->isFloatTy() && Value2->getType()->isDoubleTy())
+			Value1 = IRBuilder.CreateFPCast(Value1, IRBuilder.getDoubleTy());
+		else if (Value1->getType()->isDoubleTy() && Value2->getType()->isFloatTy())
+			Value2 = IRBuilder.CreateFPCast(Value2, IRBuilder.getDoubleTy());
+		return true;
+	}
+	else if (Value1->getType()->isIntegerTy() && Value2->getType()->isFloatingPointTy()) {
+		Value1 = Value1->getType()->isIntegerTy(1) ?
+			IRBuilder.CreateUIToFP(Value1, Value2->getType()) : IRBuilder.CreateSIToFP(Value1, Value2->getType());
+		return true;
+	}
+	else if (Value1->getType()->isFloatingPointTy() && Value2->getType()->isIntegerTy()) {
+		Value2 = Value2->getType()->isIntegerTy(1) ?
+			IRBuilder.CreateUIToFP(Value2, Value1->getType()) : IRBuilder.CreateSIToFP(Value2, Value1->getType());
+		return true;
+	}
+	else return false;
 }
 
 //Cast a integer, or a floating-point number, or a pointer to i1 integer.
@@ -61,8 +144,10 @@ llvm::Value* Cast2I1(llvm::Value* Value) {
 		return IRBuilder.CreateFCmpONE(Value, llvm::ConstantFP::get(Context, llvm::APFloat(0.0)));
 	else if (Value->getType()->isPointerTy())
 		return IRBuilder.CreateICmpNE(IRBuilder.CreatePtrToInt(Value, IRBuilder.getInt64Ty()), IRBuilder.getInt64(0));
-	else
+	else {
+		throw std::logic_error("Cannot cast to bool type.");
 		return NULL;
+	}
 }
 
 //Create an alloca instruction in the entry block of the current function,
@@ -78,6 +163,21 @@ llvm::AllocaInst* CreateEntryBlockAlloca(llvm::Function* Func, std::string VarNa
 //Create an equal-comparison instruction. This function will automatically do type casting
 //if the two input values are not of the same type.
 llvm::Value* CreateCmpEQ(llvm::Value* LHS, llvm::Value* RHS) {
+	//Arithmatic compare
+	if (TypeUpgrading(LHS, RHS)) {
+		if (LHS->getType()->isIntegerTy())
+			return IRBuilder.CreateICmpEQ(LHS, RHS);
+		else
+			return IRBuilder.CreateFCmpOEQ(LHS, RHS);
+	}
+	//Pointer compare
+	if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+		return IRBuilder.CreateICmpEQ(
+			IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+			IRBuilder.getInt64(0)
+		);
+	}
+	throw std::domain_error("Comparison \"==\" using unsupported type combination.");
 	return NULL;
 }
 
@@ -98,7 +198,73 @@ llvm::BranchInst* TerminateBlockByBr(llvm::BasicBlock* BB) {
 		return NULL;
 }
 
-//Calculate the size of a given type in bytes
-llvm::Value* SizeOf(llvm::Type* Type) {
-	llvm::DataLayout()
+//Create an addition instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int + Int -> Int			(TypeUpgrading)
+//2. Int + FP -> FP				(TypeUpgrading)
+//3. Int + Pointer -> Pointer
+//4. FP + Int -> FP				(TypeUpgrading)
+//2. FP + FP -> FP				(TypeUpgrading)
+//3. Pointer + Int -> Pointer
+llvm::Value* CreateAdd(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (TypeUpgrading(LHS, RHS)) {
+		if (LHS->getType()->isIntegerTy())
+			return IRBuilder.CreateAdd(LHS, RHS);
+		else
+			return IRBuilder.CreateFAdd(LHS, RHS);
+	}
+	if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+		auto TMP = LHS;
+		LHS = RHS;
+		RHS = TMP;
+	}
+	if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+		return IRBuilder.CreateIntToPtr(
+			IRBuilder.CreateAdd(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreateMul(
+					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
+					IRBuilder.getInt64(Generator.DL->getTypeAllocSize(LHS->getType()->getNonOpaquePointerElementType()))
+				)
+			),
+			LHS->getType()
+		);
+	}
+	throw std::logic_error("Addition using unsupported type combination.");
+	return NULL;
+}
+
+//Create an subtraction instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int - Int -> Int			(TypeUpgrading)
+//2. Int - FP -> FP				(TypeUpgrading)
+//3. FP - Int -> FP				(TypeUpgrading)
+//4. FP - FP -> FP				(TypeUpgrading)
+//5. Pointer - Int -> Pointer
+//6. Pointer - Pointer -> Int64
+llvm::Value* CreateSub(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (TypeUpgrading(LHS, RHS)) {
+		if (LHS->getType()->isIntegerTy())
+			return IRBuilder.CreateSub(LHS, RHS);
+		else
+			return IRBuilder.CreateFSub(LHS, RHS);
+	}
+	if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+		return IRBuilder.CreateIntToPtr(
+			IRBuilder.CreateSub(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreateMul(
+					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
+					IRBuilder.getInt64(Generator.DL->getTypeAllocSize(LHS->getType()->getNonOpaquePointerElementType()))
+				)
+			),
+			LHS->getType()
+		);
+	}
+	if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType())
+		return IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS);
+	throw std::logic_error("Subtraction using unsupported type combination.");
+	return NULL;
 }

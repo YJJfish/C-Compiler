@@ -153,6 +153,14 @@ public:
 		return NULL;
 	}
 
+	//A combination of FindLocalVariable and FindGlobalVariable
+	llvm::Value* FindVariable(std::string Name) {
+		auto Ret1 = this->FindLocalVariable(Name);
+		if (Ret1) return Ret1;
+		auto Ret2 = this->FindGlobalVariable(Name);
+		return Ret2;
+	}
+
 	//Add an item to the current variable symbol table
 	//If an old value exists (i.e., conflict), return false
 	bool AddVariable(std::string Name, llvm::Value* Variable) {

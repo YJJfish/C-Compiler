@@ -609,15 +609,7 @@ namespace AST {
 			);
 		}
 		else {
-			return TypeCasting(
-				IRBuilder.CreateAdd(
-					TypeCasting(ArrayPtr, IRBuilder.getInt64Ty()),
-					IRBuilder.getInt64(
-						__Generator.DL->getTypeAllocSize(ArrayPtr->getType()->getNonOpaquePointerElementType())
-					)
-				),
-				ArrayPtr->getType()
-			);
+			return CreateAdd(ArrayPtr, Subspt, __Generator);
 		}
 	}
 
@@ -629,6 +621,784 @@ namespace AST {
 			return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(this->_Arg2->GetLLVMType(__Generator)));
 	}
 	llvm::Value* SizeOf::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Sizeof() only returns right-values.");
+		return NULL;
+	}
+
+	//Function call
+	llvm::Value* FunctionCall::CodeGen(CodeGenerator& __Generator) {
+		//Get the function. Throw exception if the function doesn't exist.
+		llvm::Function* Func = __Generator.Module->getFunction(this->_FuncName);
+		if (Func == NULL) {
+			throw std::domain_error(this->_FuncName + "is not a defined function.");
+			return NULL;
+		}
+		//Check the number of args. If Func took a different number of args, reject.
+		if (Func->arg_size() != this->_ArgList->size()) {
+			throw std::invalid_argument("#Args doesn't match when calling function " + this->_FuncName + ". Expected " + std::to_string(Func->arg_size()) + ", got " + std::to_string(this->_ArgList->size()));
+			return NULL;
+		}
+		//Check arg types. If Func took different different arg types, reject.
+		std::vector<llvm::Value*> ArgList;
+		size_t Index = 0;
+		for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++) {
+			llvm::Value* Arg = this->_ArgList->at(Index)->CodeGen(__Generator);
+			Arg = TypeCasting(Arg, ArgIter->getType());
+			if (Arg == NULL) {
+				throw std::invalid_argument(std::to_string(Index) + "-th arg type doesn't match when calling function " + this->_FuncName + ".");
+				return NULL;
+			}
+			ArgList.push_back(Arg);
+		}
+		//Create function call.
+		return IRBuilder.CreateCall(Func, ArgList);
+	}
+	llvm::Value* FunctionCall::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Function call only returns right-values.");
+		return NULL;
+	}
+
+	//Structure reference, e.g. a.x, a.y
+	llvm::Value* StructReference::CodeGen(CodeGenerator& __Generator) {
+		return NULL;
+	}
+	llvm::Value* StructReference::CodeGenPtr(CodeGenerator& __Generator) {
+		return NULL;
+	}
+
+	//Structure dereference, e.g. a->x, a->y
+	llvm::Value* StructDereference::CodeGen(CodeGenerator& __Generator) {
+		return NULL;
+	}
+	llvm::Value* StructDereference::CodeGenPtr(CodeGenerator& __Generator) {
+		return NULL;
+	}
+
+	//Unary plus, e.g. +i, +j, +123
+	llvm::Value* UnaryPlus::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGen(__Generator);
+		if (!(
+			Operand->getType()->isIntegerTy() ||
+			Operand->getType()->isFloatingPointTy())
+			)
+			throw std::logic_error("Unary plus must be applied to integers or floating-point numbers.");
+		return Operand;
+	}
+	llvm::Value* UnaryPlus::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Unary plus only returns right-values.");
+		return NULL;
+	}
+
+	//Unary minus, e.g. -i, -j, -123
+	llvm::Value* UnaryMinus::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGen(__Generator);
+		if (!(
+			Operand->getType()->isIntegerTy() ||
+			Operand->getType()->isFloatingPointTy())
+			)
+			throw std::logic_error("Unary minus must be applied to integers or floating-point numbers.");
+		if (Operand->getType()->isIntegerTy())
+			return IRBuilder.CreateSub(llvm::ConstantInt::get(Operand->getType(), 0, true), Operand);
+		else
+			return IRBuilder.CreateFSub(llvm::ConstantFP::get(Operand->getType(), 0.0), Operand);
+	}
+	llvm::Value* UnaryMinus::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Unary minus only returns right-values.");
+		return NULL;
+	}
+
+	//Type cast, e.g. (float)n, (int)1.0
+	llvm::Value* TypeCast::CodeGen(CodeGenerator& __Generator) {
+		return TypeCasting(this->_Operand->CodeGen(__Generator), this->_VarType->GetLLVMType(__Generator));
+	}
+	llvm::Value* TypeCast::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Type casting only returns right-values.");
+		return NULL;
+	}
+
+	//Prefix increment, e.g. ++i
+	llvm::Value* PrefixInc::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* PrefixInc::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Prefix increment must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValuePlus = CreateAdd(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValuePlus, Operand);
+		return Operand;
+	}
+
+	//Postfix increment, e.g. i++
+	llvm::Value* PostfixInc::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Postfix increment must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValuePlus = CreateAdd(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValuePlus, Operand);
+		return OpValue;
+	}
+	llvm::Value* PostfixInc::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Postfix increment only returns right-values.");
+		return NULL;
+	}
+
+	//Prefix decrement, e.g. --i
+	llvm::Value* PrefixDec::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* PrefixDec::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Prefix decrement must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValueMinus = CreateSub(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValueMinus, Operand);
+		return Operand;
+	}
+
+	//Postfix decrement, e.g. i--
+	llvm::Value* PostfixDec::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Postfix decrement must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValueMinus = CreateSub(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValueMinus, Operand);
+		return OpValue;
+	}
+	llvm::Value* PostfixDec::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Postfix decrement only returns right-values.");
+		return NULL;
+	}
+
+	//Indirection, e.g. *ptr
+	llvm::Value* Indirection::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* Indirection::CodeGenPtr(CodeGenerator& __Generator) {
+		return this->_Operand->CodeGenPtr(__Generator);
+	}
+
+	//Fetch address, e.g. &i
+	llvm::Value* AddressOf::CodeGen(CodeGenerator& __Generator) {
+		return this->CodeGenPtr(__Generator);
+	}
+	llvm::Value* AddressOf::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Address operator \"&\" only returns right-values.");
+		return NULL;
+	}
+
+	//Logic NOT, e.g. !x
+	llvm::Value* LogicNot::CodeGen(CodeGenerator& __Generator) {
+		return IRBuilder.CreateNeg(Cast2I1(this->_Operand->CodeGen(__Generator)));
+	}
+	llvm::Value* LogicNot::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Logic NOT operator \"!\" only returns right-values.");
+		return NULL;
+	}
+
+	//Bitwise NOT, e.g. ~x
+	llvm::Value* BitwiseNot::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGen(__Generator);
+		if (!Operand->getType()->isIntegerTy()) {
+			throw std::logic_error("Bitwise NOT operator \"~\" must be applied to integers.");
+			return NULL;
+		}
+		return IRBuilder.CreateNot(Operand);
+	}
+	llvm::Value* BitwiseNot::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Bitwise NOT operator \"~\" only returns right-values.");
+		return NULL;
+	}
+
+	//Division, e.g. x/y
+	llvm::Value* Division::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateSDiv(LHS, RHS);
+			else
+				return IRBuilder.CreateFDiv(LHS, RHS);
+		}
+		else {
+			throw std::logic_error("Division operator \"/\" must only be applied to integers or floating-point numbers.");
+			return NULL;
+		}
+	}
+	llvm::Value* Division::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Division operator \"/\" only returns right-values.");
+		return NULL;
+	}
+
+	//Multiplication, e.g. x*y
+	llvm::Value* Multiplication::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateMul(LHS, RHS);
+			else
+				return IRBuilder.CreateFMul(LHS, RHS);
+		}
+		else {
+			throw std::logic_error("Multiplication operator \"*\" must only be applied to integers or floating-point numbers.");
+			return NULL;
+		}
+	}
+	llvm::Value* Multiplication::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Multiplication operator \"*\" only returns right-values.");
+		return NULL;
+	}
+
+	//Modulo, e.g. x%y
+	llvm::Value* Modulo::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Modulo operator \"%\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateSRem(LHS, RHS);
+	}
+	llvm::Value* Modulo::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Modulo operator \"%\" only returns right-values.");
+		return NULL;
+	}
+
+	//Addition, e.g. x+y
+	llvm::Value* Addition::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAdd(LHS, RHS, __Generator);
+	}
+	llvm::Value* Addition::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Addition operator \"+\" only returns right-values.");
+		return NULL;
+	}
+
+	//Subtraction, e.g. x-y
+	llvm::Value* Subtraction::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateSub(LHS, RHS, __Generator);
+	}
+	llvm::Value* Subtraction::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Subtraction operator \"-\" only returns right-values.");
+		return NULL;
+	}
+
+	//LeftShift, e.g. x<<y
+	llvm::Value* LeftShift::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateShl(LHS, RHS);
+	}
+	llvm::Value* LeftShift::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Left shifting operator \"<<\" only returns right-values.");
+		return NULL;
+	}
+
+	//RightShift, e.g. x>>y
+	llvm::Value* RightShift::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateAShr(LHS, RHS);
+	}
+	llvm::Value* RightShift::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Right shifting operator \">>\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicGT, e.g. x>y
+	llvm::Value* LogicGT::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		//Arithmatic compare
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateICmpSGT(LHS, RHS);
+			else
+				return IRBuilder.CreateFCmpOGT(LHS, RHS);
+		}
+		//Pointer compare
+		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+			return IRBuilder.CreateICmpSGT(
+				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+				IRBuilder.getInt64(0)
+			);
+		}
+		throw std::domain_error("Comparison \">\" using unsupported type combination.");
+	}
+	llvm::Value* LogicGT::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \">\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicGE, e.g. x>=y
+	llvm::Value* LogicGE::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		//Arithmatic compare
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateICmpSGE(LHS, RHS);
+			else
+				return IRBuilder.CreateFCmpOGE(LHS, RHS);
+		}
+		//Pointer compare
+		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+			return IRBuilder.CreateICmpSGE(
+				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+				IRBuilder.getInt64(0)
+			);
+		}
+		throw std::domain_error("Comparison \">=\" using unsupported type combination.");
+	}
+	llvm::Value* LogicGE::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \">=\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicLT, e.g. x<y
+	llvm::Value* LogicLT::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		//Arithmatic compare
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateICmpSLT(LHS, RHS);
+			else
+				return IRBuilder.CreateFCmpOLT(LHS, RHS);
+		}
+		//Pointer compare
+		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+			return IRBuilder.CreateICmpSLT(
+				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+				IRBuilder.getInt64(0)
+			);
+		}
+		throw std::domain_error("Comparison \"<\" using unsupported type combination.");
+	}
+	llvm::Value* LogicLT::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \"<\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicLE, e.g. x<=y
+	llvm::Value* LogicLE::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		//Arithmatic compare
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateICmpSLE(LHS, RHS);
+			else
+				return IRBuilder.CreateFCmpOLE(LHS, RHS);
+		}
+		//Pointer compare
+		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+			return IRBuilder.CreateICmpSLE(
+				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+				IRBuilder.getInt64(0)
+			);
+		}
+		throw std::domain_error("Comparison \"<=\" using unsupported type combination.");
+	}
+	llvm::Value* LogicLE::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \"<=\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicEQ, e.g. x==y
+	llvm::Value* LogicEQ::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateCmpEQ(LHS, RHS);
+	}
+	llvm::Value* LogicEQ::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \"==\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicNEQ, e.g. x!=y
+	llvm::Value* LogicNEQ::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		//Arithmatic compare
+		if (TypeUpgrading(LHS, RHS)) {
+			if (LHS->getType()->isIntegerTy())
+				return IRBuilder.CreateICmpNE(LHS, RHS);
+			else
+				return IRBuilder.CreateFCmpONE(LHS, RHS);
+		}
+		//Pointer compare
+		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
+			return IRBuilder.CreateICmpNE(
+				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
+				IRBuilder.getInt64(0)
+			);
+		}
+		throw std::domain_error("Comparison \"!=\" using unsupported type combination.");
+	}
+	llvm::Value* LogicNEQ::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Comparison operator \"!=\" only returns right-values.");
+		return NULL;
+	}
+
+	//BitwiseAND, e.g. x&y
+	llvm::Value* BitwiseAND::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Bitwise AND operator \"&\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateAnd(LHS, RHS);
+	}
+	llvm::Value* BitwiseAND::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Bitwise AND operator \"&\" only returns right-values.");
+		return NULL;
+	}
+
+	//BitwiseXOR, e.g. x^y
+	llvm::Value* BitwiseXOR::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Bitwise XOR operator \"^\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateXor(LHS, RHS);
+	}
+	llvm::Value* BitwiseXOR::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Bitwise XOR operator \"^\" only returns right-values.");
+		return NULL;
+	}
+
+	//BitwiseOR, e.g. x|y
+	llvm::Value* BitwiseOR::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+			throw std::domain_error("Bitwise OR operator \"|\" must be applied to 2 integers.");
+			return NULL;
+		}
+		TypeUpgrading(LHS, RHS);
+		return IRBuilder.CreateOr(LHS, RHS);
+	}
+	llvm::Value* BitwiseOR::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Bitwise OR operator \"|\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicAND, e.g. x&&y
+	llvm::Value* LogicAND::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		LHS = Cast2I1(LHS);
+		if (LHS == NULL) {
+			throw std::domain_error("Logic AND operator \"&&\" must be applied to 2 expressions that can be cast to boolean.");
+			return NULL;
+		}
+		RHS = Cast2I1(RHS);
+		if (RHS == NULL) {
+			throw std::domain_error("Logic AND operator \"&&\" must be applied to 2 expressions that can be cast to boolean.");
+			return NULL;
+		}
+		return IRBuilder.CreateLogicalAnd(LHS, RHS);
+	}
+	llvm::Value* LogicAND::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Logic AND operator \"&&\" only returns right-values.");
+		return NULL;
+	}
+
+	//LogicOR, e.g. x||y
+	llvm::Value* LogicOR::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		LHS = Cast2I1(LHS);
+		if (LHS == NULL) {
+			throw std::domain_error("Logic OR operator \"||\" must be applied to 2 expressions that can be cast to boolean.");
+			return NULL;
+		}
+		RHS = Cast2I1(RHS);
+		if (RHS == NULL) {
+			throw std::domain_error("Logic OR operator \"||\" must be applied to 2 expressions that can be cast to boolean.");
+			return NULL;
+		}
+		return IRBuilder.CreateLogicalOr(LHS, RHS);
+	}
+	llvm::Value* LogicOR::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Logic OR operator \"||\" only returns right-values.");
+		return NULL;
+	}
+
+	//TernaryCondition, e.g. (cond)?x:y
+	llvm::Value* TernaryCondition::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Condition = Cast2I1(this->_Condition->CodeGen(__Generator));
+		if (Condition == NULL) {
+			throw std::logic_error("The first operand of thernary operand \" ? : \" must be able to be cast to boolean.");
+			return NULL;
+		}
+		llvm::Value* True = this->_Then->CodeGen(__Generator);
+		llvm::Value* False = this->_Else->CodeGen(__Generator);
+		//Arithmatic (c)*x+(!c)*y
+		if (TypeUpgrading(True, False)) {
+			llvm::Value* One = TypeCasting(Condition, True->getType());
+			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), True->getType());
+			if (True->getType()->isIntegerTy()) {
+				return IRBuilder.CreateAdd(
+					IRBuilder.CreateMul(One, True),
+					IRBuilder.CreateMul(Zero, False)
+				);
+			}
+			else {
+				return IRBuilder.CreateFAdd(
+					IRBuilder.CreateFMul(One, True),
+					IRBuilder.CreateFMul(Zero, False)
+				);
+			}
+		}
+		//Pointer (c)*p1+(!c)*p2
+		else if (True->getType()->isPointerTy() && True->getType() == False->getType()) {
+			llvm::Value* One = TypeCasting(Condition, IRBuilder.getInt64Ty());
+			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), IRBuilder.getInt64Ty());
+			return IRBuilder.CreateIntToPtr(
+				IRBuilder.CreateAdd(
+					IRBuilder.CreateMul(One, IRBuilder.CreatePtrToInt(True, IRBuilder.getInt64Ty())),
+					IRBuilder.CreateMul(Zero, IRBuilder.CreatePtrToInt(False, IRBuilder.getInt64Ty()))
+				), True->getType());
+		}
+		throw std::domain_error("Thernary operand \" ? : \" using unsupported type combination.");
+		return NULL;
+	}
+	llvm::Value* TernaryCondition::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Condition = Cast2I1(this->_Condition->CodeGen(__Generator));
+		if (Condition == NULL) {
+			throw std::logic_error("The first operand of thernary operand \" ? : \" must be able to be cast to boolean.");
+			return NULL;
+		}
+		llvm::Value* True = this->_Then->CodeGenPtr(__Generator);
+		llvm::Value* False = this->_Else->CodeGenPtr(__Generator);
+		if (True->getType() == False->getType()) {
+			llvm::Value* One = TypeCasting(Condition, IRBuilder.getInt64Ty());
+			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), IRBuilder.getInt64Ty());
+			return IRBuilder.CreateIntToPtr(
+				IRBuilder.CreateAdd(
+					IRBuilder.CreateMul(One, IRBuilder.CreatePtrToInt(True, IRBuilder.getInt64Ty())),
+					IRBuilder.CreateMul(Zero, IRBuilder.CreatePtrToInt(False, IRBuilder.getInt64Ty()))
+				), True->getType());
+		}
+		throw std::domain_error("When using thernary expressions \" ? : \" as left-values, the latter two operands must be of the same type.");
+		return NULL;
+	}
+
+	//DirectAssign, e.g. x=y
+	llvm::Value* DirectAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* DirectAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		RHS = TypeCasting(RHS, LHS->getType()->getNonOpaquePointerElementType());
+		if (RHS == NULL) {
+			throw std::domain_error("Assignment with values that cannot be cast to the target type.");
+			return NULL;
+		}
+		IRBuilder.CreateStore(RHS, LHS);
+		return LHS;
+	}
+
+	//DivAssign, e.g. x/=y
+	llvm::Value* DivAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* DivAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		Division Div(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &Div);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//MulAssign, e.g. x*=y
+	llvm::Value* MulAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* MulAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		Multiplication Mul(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &Mul);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//ModAssign, e.g. x%=y
+	llvm::Value* ModAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* ModAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		Modulo Mod(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &Mod);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//AddAssign, e.g. x+=y
+	llvm::Value* AddAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* AddAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		Addition Add(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &Add);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//SubAssign, e.g. x-=y
+	llvm::Value* SubAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* SubAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		Subtraction Sub(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &Sub);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//SHLAssign, e.g. x<<=y
+	llvm::Value* SHLAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* SHLAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		LeftShift SHL(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &SHL);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//SHRAssign, e.g. x>>=y
+	llvm::Value* SHRAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* SHRAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		RightShift SHR(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &SHR);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//BitwiseANDAssign, e.g. x&=y
+	llvm::Value* BitwiseANDAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* BitwiseANDAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		BitwiseAND BAND(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &BAND);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//BitwiseXORAssign, e.g. x^=y
+	llvm::Value* BitwiseXORAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* BitwiseXORAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		BitwiseXOR BXOR(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &BXOR);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//BitwiseORAssign, e.g. x|=y
+	llvm::Value* BitwiseORAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* BitwiseORAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		BitwiseOR BOR(this->_LHS, this->_RHS);
+		DirectAssign Ass(this->_LHS, &BOR);
+		return Ass.CodeGenPtr(__Generator);
+	}
+
+	//CommaExpr, e.g. x,y,z,w
+	llvm::Value* CommaExpr::CodeGen(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGen(__Generator);
+	}
+	llvm::Value* CommaExpr::CodeGenPtr(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGenPtr(__Generator);
+	}
+
+	//Variable, e.g. x
+	llvm::Value* Variable::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* Variable::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* VarPtr = __Generator.FindVariable(this->_Name);
+		if (VarPtr == NULL) {
+			throw std::logic_error("Variable " + this->_Name + " is not defined in this scope.");
+			return NULL;
+		}
+		return VarPtr;
+	}
+
+	//Constant, e.g. 1, 1.0, 'c', true, false
+	llvm::Value* Constant::CodeGen(CodeGenerator& __Generator) {
+		switch (this->_Type) {
+		case BuiltInType::TypeID::_Bool:
+			return IRBuilder.getInt1(this->_Bool);
+		case BuiltInType::TypeID::_Char:
+			return IRBuilder.getInt8(this->_Character);
+		case BuiltInType::TypeID::_Int:
+			return IRBuilder.getInt32(this->_Integer);
+		case BuiltInType::TypeID::_Double:
+			return llvm::ConstantFP::get(IRBuilder.getDoubleTy(), this->_Real);
+		}
+	}
+	llvm::Value* Constant::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Constant is a right-value.");
 		return NULL;
 	}
 }

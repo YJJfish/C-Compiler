@@ -394,7 +394,8 @@ In conclusion, The grammar of our language is:
   
   _ExprList ->	_ExprList COMMA Expr | Expr
   
-  Constant ->		STRING |
+  Constant ->		TRUE |
+  				FALSE |
   				CHARACTER |
   				INTEGER |
   				REAL
