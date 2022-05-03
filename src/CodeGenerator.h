@@ -66,6 +66,7 @@ using GlobalVariableTable = std::map<std::string, llvm::GlobalVariable*>;
 class CodeGenerator {
 public:
 	llvm::Module* Module;
+	llvm::DataLayout* DL;
 private:
 	std::vector<llvm::Function*> FuncStack;				//Global function symbol table
 	std::vector<TypedefTable*> TypedefStack;			//Typedef symbol table
@@ -78,6 +79,7 @@ public:
 	//Constructor
 	CodeGenerator(void) :
 		Module(new llvm::Module("main", Context)),
+		DL(new llvm::DataLayout(Module)),
 		FuncStack(),
 		TypedefStack(),
 		VariableStack(),

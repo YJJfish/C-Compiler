@@ -98,4 +98,7 @@ llvm::BranchInst* TerminateBlockByBr(llvm::BasicBlock* BB) {
 		return NULL;
 }
 
-size_t SizeOf()
+//Calculate the size of a given type in bytes
+llvm::Value* SizeOf(llvm::Type* Type) {
+	llvm::DataLayout()
+}

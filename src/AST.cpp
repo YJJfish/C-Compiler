@@ -580,7 +580,8 @@ namespace AST {
 
 	//Subscript, e.g. a[10]
 	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
-
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
 		//Get the pointer pointing to the array
@@ -597,12 +598,12 @@ namespace AST {
 		}
 		//If "ArrayPtr" points to an array, use CreateGEP.
 		//Otherwise, use pointer addition.
-		if (ArrayPtr->getType()->getPointerElementType()->isArrayTy()) {
+		if (ArrayPtr->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
 			std::vector<llvm::Value*> Index;
 			Index.push_back(IRBuilder.getInt32(0));
 			Index.push_back(Subspt);
 			return IRBuilder.CreateGEP(
-				ArrayPtr->getType()->getPointerElementType(),
+				ArrayPtr->getType()->getNonOpaquePointerElementType(),
 				ArrayPtr,
 				Index
 			);
@@ -611,10 +612,23 @@ namespace AST {
 			return TypeCasting(
 				IRBuilder.CreateAdd(
 					TypeCasting(ArrayPtr, IRBuilder.getInt64Ty()),
-					ArrayPtr->getType()->getPointerElementType()
+					IRBuilder.getInt64(
+						__Generator.DL->getTypeAllocSize(ArrayPtr->getType()->getNonOpaquePointerElementType())
+					)
 				),
 				ArrayPtr->getType()
 			);
 		}
+	}
+
+	//Operator sizeof() in C
+	llvm::Value* SizeOf::CodeGen(CodeGenerator& __Generator) {
+		if (this->_Arg1)
+			return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(this->_Arg1->CodeGen(__Generator)->getType()));
+		else
+			return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(this->_Arg2->GetLLVMType(__Generator)));
+	}
+	llvm::Value* SizeOf::CodeGenPtr(CodeGenerator& __Generator) {
+		return NULL;
 	}
 }

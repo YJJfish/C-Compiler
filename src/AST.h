@@ -528,229 +528,377 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
+	//Operator sizeof() in C
 	class SizeOf : public Expr {
 	public:
-		Expr* _Arg;
+		Expr* _Arg1;
+		VarType* _Arg2;
+		SizeOf(Expr* __Arg1) : _Arg1(__Arg1), _Arg2(NULL) {}
+		SizeOf(VarType* __Arg2) : _Arg1(NULL), _Arg2(__Arg2) {}
+		~SizeOf(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
+
+	//Function call
 	class FunctionCall : public Expr {
 	public:
 		std::string _FuncName;
 		ExprList* _ArgList;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class StructReference : public Expr {
 	public:
 		Expr* _Struct;
 		std::string _MemName;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class StructDereference : public Expr {
 	public:
 		Expr* _StructPtr;
 		std::string _MemName;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class UnaryPlus : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class UnaryMinus : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class TypeCast : public Expr {
 	public:
 		VarType* _VarType;
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class PrefixInc : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class PostfixInc : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class PrefixDec : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class PostfixDec : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Indirection : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class AddressOf : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicNot : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseNot : public Expr {
 	public:
 		Expr* _Operand;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Division : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Multiplication : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Modulo : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Addition : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Subtraction : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LeftShift : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class RightShift : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicGT : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicGE : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicLT : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicLE : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicEQ : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicNEQ : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseAND : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseXOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicAND : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class LogicOR : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class TernaryCondition : public Expr {
 	public:
 		Expr* _Condition;
 		Expr* _Then;
 		Expr* _Else;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class DirectAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class DivAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class MulAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class ModAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class AddAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class SubAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class SHLAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class SHRAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseANDAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseXORAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class BitwiseORAssign : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class CommaExpr : public Expr {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Variable : public Expr {
 	public:
 		std::string _Name;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class Constant : public Expr {
 	public:
@@ -759,5 +907,8 @@ namespace AST {
 		char _Character;
 		int _Integer;
 		double _Real;
+
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 }
