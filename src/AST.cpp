@@ -6,9 +6,10 @@
  ****************************************************
  */
 
-#include "AST.h"
+#include "CodeGenerator.h"
 #include "Utils.hpp"
 
+ //Namespace containing all classes involved in the construction of Abstract Syntax Tree (AST)
 namespace AST {
 	//A program is composed of several declarations
 	llvm::Value* Program::CodeGen(CodeGenerator& __Generator) {
@@ -26,7 +27,7 @@ namespace AST {
 		for (auto ArgType : *(this->_ArgList)) {
 			llvm::Type* LLVMType = ArgType->_VarType->GetLLVMType(__Generator);
 			if (!LLVMType) {
-				std::cout << "Defining a function using unknown type(s)." << std::endl;
+				throw std::logic_error("Defining a function " + this->_Name + " using unknown type(s).");
 				return NULL;
 			}
 			//In C, when the function argument type is an array type, we don't pass the entire array.
@@ -49,24 +50,24 @@ namespace AST {
 			//or the current declaration doesn't have a body,
 			//reject this declaration.
 			if (!Func->empty() || !this->_FuncBody) {
-				std::cout << "[CodeGen] Redefinition of function " << this->_Name << ".\n";
+				throw std::logic_error("Redefining function " + this->_Name);
 				return NULL;
 			}
 			//Check number of args. If Func took a different number of args, reject.
 			if (Func->arg_size() != ArgTypes.size()) {
-				std::cout << "[CodeGen] Redefinition of function " << this->_Name << " with different number of args.\n";
+				throw std::logic_error("Redefining function " + this->_Name + " with different number of args.");
 				return NULL;
 			}
 			//Check arg types. If Func took different different arg types, reject.
 			size_t Index = 0;
 			for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++)
 				if (ArgIter->getType() != ArgTypes[Index]) {
-					std::cout << "[CodeGen] Redefinition of function " << this->_Name << " with different arg types.\n";
+					throw std::logic_error("Redefining function " + this->_Name + " with different arg types.");
 					return NULL;
 				}
 			//Check return type. If Func took different different return types, reject.
 			if (this->_RetType->GetLLVMType(__Generator) != Func->getReturnType()) {
-				std::cout << "[CodeGen] Redefinition of function " << this->_Name << " with different return types.\n";
+				throw std::logic_error("Redefining function " + this->_Name + " with different return types.");
 				return NULL;
 			}
 		}
@@ -136,8 +137,9 @@ namespace AST {
 				//Create an alloca.
 				auto Alloc = CreateEntryBlockAlloca(__Generator.GetCurrentFunction(), NewVar->_Name, VarType);
 				if (!__Generator.AddVariable(NewVar->_Name, Alloc)) {
-					std::cout << "Redefinition of local variable " << NewVar->_Name << "." << std::endl;
+					throw std::logic_error("Redefining local variable " + NewVar->_Name + ".");
 					Alloc->eraseFromParent();
+					return NULL;
 				}
 				//Assign the initial value by "store" instruction.
 				if (NewVar->_InitialValue)
@@ -153,7 +155,7 @@ namespace AST {
 				if (NewVar->_InitialValue)
 					if (!NewVar->_InitialValue->_IsConstant) {
 						//Global variable must be initialized (if any) by a constant.
-						std::cout << "[CodeGen] Initializing global variable " << NewVar->_Name << " with non-constant value.\n";
+						throw std::logic_error("Initializing global variable " + NewVar->_Name + " with non-constant value.");
 						return NULL;
 					}
 					else
@@ -168,8 +170,9 @@ namespace AST {
 					NewVar->_Name
 				);
 				if (!__Generator.AddVariable(NewVar->_Name, Alloc)) {
-					std::cout << "Redefinition of global variable " << NewVar->_Name << "." << std::endl;
+					throw std::logic_error("Redefining global variable " + NewVar->_Name + ".");
 					Alloc->eraseFromParent();
+					return NULL;
 				}
 			}
 		}
@@ -182,11 +185,11 @@ namespace AST {
 		//If an old value exists (i.e., conflict), raise an error
 		llvm::Type* LLVMType = this->_VarType->GetLLVMType(__Generator);
 		if (!LLVMType) {
-			std::cout << "Typedef " << this->_Alias << " using undefined types." << std::endl;
+			throw std::logic_error("Typedef " + this->_Alias + " using undefined types.");
 			return NULL;
 		}
 		if (__Generator.AddType(this->_Alias, LLVMType))
-			std::cout << "Redefinition of typename " << this->_Alias << std::endl;
+			throw std::logic_error("Redefinition of typename " + this->_Alias);
 		return NULL;
 	}
 
@@ -286,7 +289,7 @@ namespace AST {
 		llvm::Value* Condition = this->_Condition->CodeGen(__Generator);
 		//Cast the type to i1
 		if (!(Condition = Cast2I1(Condition))) {
-			std::cout << "The condition value of if-statement must be either an integer, or a floating-point number, or a pointer." << std::endl;
+			throw std::logic_error("The condition value of if-statement must be either an integer, or a floating-point number, or a pointer.");
 			return NULL;
 		}
 		//Create "Then", "Else" and "Merge" block
@@ -340,7 +343,7 @@ namespace AST {
 		IRBuilder.SetInsertPoint(WhileCondBB);
 		llvm::Value* Condition = this->_Condition->CodeGen(__Generator);
 		if (!(Condition = Cast2I1(Condition))) {
-			std::cout << "The condition value of while-statement must be either an integer, or a floating-point number, or a pointer." << std::endl;
+			throw std::logic_error("The condition value of while-statement must be either an integer, or a floating-point number, or a pointer.");
 			return NULL;
 		}
 		IRBuilder.CreateCondBr(Condition, WhileLoopBB, WhileEndBB);
@@ -392,7 +395,7 @@ namespace AST {
 		IRBuilder.SetInsertPoint(DoCondBB);
 		llvm::Value* Condition = this->_Condition->CodeGen(__Generator);
 		if (!(Condition = Cast2I1(Condition))) {
-			std::cout << "The condition value of do-statement must be either an integer, or a floating-point number, or a pointer." << std::endl;
+			throw std::logic_error("The condition value of do-statement must be either an integer, or a floating-point number, or a pointer.");
 			return NULL;
 		}
 		IRBuilder.CreateCondBr(Condition, DoLoopBB, DoEndBB);
@@ -426,7 +429,7 @@ namespace AST {
 			//If it has a loop condition, evaluate it (cast the type to i1 if necessary).
 			llvm::Value* Condition = this->_Condition->CodeGen(__Generator);
 			if (!(Condition = Cast2I1(Condition))) {
-				std::cout << "The condition value of for-statement must be either an integer, or a floating-point number, or a pointer." << std::endl;
+				throw std::logic_error("The condition value of for-statement must be either an integer, or a floating-point number, or a pointer.");
 				return NULL;
 			}
 			IRBuilder.CreateCondBr(Condition, ForLoopBB, ForEndBB);
@@ -539,7 +542,7 @@ namespace AST {
 		if (ContinueTarget)
 			IRBuilder.CreateBr(ContinueTarget);
 		else
-			std::cout << "Continue statement should only be used in loops or switch statements." << std::endl;
+			throw std::logic_error("Continue statement should only be used in loops or switch statements.");
 		return NULL;
 	}
 
@@ -549,7 +552,7 @@ namespace AST {
 		if (BreakTarget)
 			IRBuilder.CreateBr(BreakTarget);
 		else
-			std::cout << "Break statement should only be used in loops or switch statements." << std::endl;
+			throw std::logic_error("Break statement should only be used in loops or switch statements.");
 		return NULL;
 	}
 
@@ -557,21 +560,21 @@ namespace AST {
 	llvm::Value* ReturnStmt::CodeGen(CodeGenerator& __Generator) {
 		llvm::Function* Func = __Generator.GetCurrentFunction();
 		if (!Func) {
-			std::cout << "Return statement should only be used in function bodies." << std::endl;
+			throw std::logic_error("Return statement should only be used in function bodies.");
 			return NULL;
 		}
 		if (this->_RetVal == NULL) {
 			if (Func->getReturnType()->isVoidTy())
 				IRBuilder.CreateRetVoid();
 			else {
-				std::cout << "Expected an expression after return statement." << std::endl;
+				throw std::logic_error("Expected an expression after return statement.");
 				return NULL;
 			}
 		}
 		else {
 			llvm::Value* RetVal = TypeCasting(this->_RetVal->CodeGen(__Generator), Func->getReturnType());
 			if (!RetVal) {
-				std::cout << "The type of return value doesn't match and cannot be cast to the return type." << std::endl;
+				throw std::logic_error("The type of return value doesn't match and cannot be cast to the return type.");
 				return NULL;
 			}
 			IRBuilder.CreateRet(RetVal);
@@ -587,13 +590,13 @@ namespace AST {
 		//Get the pointer pointing to the array
 		llvm::Value* ArrayPtr = this->_Array->CodeGenPtr(__Generator);
 		if (!ArrayPtr) {
-			std::cout << "Subscription must be used to a left-value." << std::endl;
+			throw std::logic_error("Subscription must be used to a left-value.");
 			return NULL;
 		}
 		//Get the index value
 		llvm::Value* Subspt = this->_Index->CodeGen(__Generator);
 		if (!(Subspt->getType()->isIntegerTy())) {
-			std::cout << "Subscription should be an integer." << std::endl;
+			throw std::logic_error("Subscription should be an integer.");
 			return NULL;
 		}
 		//If "ArrayPtr" points to an array, use CreateGEP.

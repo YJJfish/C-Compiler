@@ -13,10 +13,38 @@
 #include <stack>
 #include <string>
 #include <exception>
-#include "CodeGenerator.h"
+#include <llvm/IR/Value.h>
+#include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/CallingConv.h>
+#include <llvm/IR/IRPrintingPasses.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/IR/ValueSymbolTable.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Verifier.h>
+#include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/ExecutionEngine/Interpreter.h>
+#include <llvm/ExecutionEngine/GenericValue.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#include <llvm/Support/SourceMgr.h>
+#include <llvm/Support/ManagedStatic.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/DynamicLibrary.h>
+#include <llvm/Target/TargetMachine.h>
 
-//Forward declarations
+class CodeGenerator;
+
+//Namespace containing all classes involved in the construction of Abstract Syntax Tree (AST)
 namespace AST {
+
+	//Forward declarations
 
 	/*** Root ***/
 	class Program;
@@ -135,6 +163,14 @@ namespace AST {
 		Program(Decls* _Decls) :_Decls(_Decls) {}
 		~Program(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+
+	//Pure virtual class for statement
+	class Stmt : public Node {
+	public:
+		Stmt(void) {}
+		~Stmt(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
 	};
 
 	//Pure virtual class for Declarations
@@ -375,14 +411,6 @@ namespace AST {
 		~Arg(void) {}
 		//Arg class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
-	};
-
-	//Pure virtual class for statement
-	class Stmt : public Node {
-	public:
-		Stmt(void) {}
-		~Stmt(void) {}
-		llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
 	};
 
 	//Statement block

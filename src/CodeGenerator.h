@@ -12,6 +12,7 @@
 #include <map>
 #include <stack>
 #include <string>
+#include <exception>
 #include <llvm/IR/Value.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Module.h>
@@ -234,32 +235,6 @@ public:
 
 	//Pass the root of the ast to this function and generate code
 	void GenerateCode(AST::Program& Root) {
-		//Main function
-		/*
-		std::vector<llvm::Type*> ArgTypes;
-		llvm::FunctionType* MainFuncType = llvm::FunctionType::get(IRBuilder.getVoidTy(), ArgTypes, false);
-		this->GlobalField = llvm::Function::Create(MainFuncType, llvm::GlobalValue::InternalLinkage, "global", *(this->Module));
-		llvm::BasicBlock* EntryBlock = llvm::BasicBlock::Create(Context, "entry", this->GlobalField, 0);
-		this->FuncStack.push(this->GlobalField);
-		IRBuilder.SetInsertPoint(EntryBlock);
-		//Create printf function
-		ArgTypes.clear();
-		ArgTypes.push_back(IRBuilder.getInt8PtrTy());
-		llvm::FunctionType* PrintfType = llvm::FunctionType::get(IRBuilder.getInt32Ty(), ArgTypes, true);
-		this->Printf = llvm::Function::Create(PrintfType, llvm::Function::ExternalLinkage, "printf", *(this->Module));
-		this->Printf->setCallingConv(llvm::CallingConv::C);
-		//Create scanf function
-		llvm::FunctionType* ScanfType = llvm::FunctionType::get(IRBuilder.getInt32Ty(), true);
-		this->Scanf = llvm::Function::Create(ScanfType, llvm::Function::ExternalLinkage, "scanf", *(this->Module));
-		this->Scanf->setCallingConv(llvm::CallingConv::C);
-
-		//Generate code
-		Root.CodeGen(*this);
-
-		//Return
-		IRBuilder.CreateRetVoid();
-		this->FuncStack.pop();*/
-		
 		//Initialize symbol table
 		this->PushTypedefTable();
 		this->GlobalVarTable = new GlobalVariableTable;
