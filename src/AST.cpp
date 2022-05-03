@@ -23,8 +23,18 @@ namespace AST {
 		//Set the argument type list. We need to call "GetLLVMType"
 		//to change AST::VarType* type to llvm::Type* type
 		std::vector<llvm::Type*> ArgTypes;
-		for (auto ArgType : *(this->_ArgList))
-			ArgTypes.push_back(ArgType->_VarType->GetLLVMType(__Generator));
+		for (auto ArgType : *(this->_ArgList)) {
+			llvm::Type* LLVMType = ArgType->_VarType->GetLLVMType(__Generator);
+			if (!LLVMType) {
+				std::cout << "Defining a function using unknown type(s)." << std::endl;
+				return NULL;
+			}
+			//In C, when the function argument type is an array type, we don't pass the entire array.
+			//Instead, we just pass a pointer pointing to the array.
+			if (LLVMType->isArrayTy())
+				LLVMType = LLVMType->getPointerTo();
+			ArgTypes.push_back(LLVMType);
+		}
 		//Get function type
 		llvm::FunctionType* FuncType = llvm::FunctionType::get(this->_RetType->GetLLVMType(__Generator), ArgTypes, false);
 		//Create function
@@ -69,12 +79,20 @@ namespace AST {
 			__Generator.PushVariableTable();	//This variable table is only used to store the arguments of the function
 			size_t Index = 0;
 			for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++) {
-				//Create alloca
-				auto Alloc = CreateEntryBlockAlloca(Func, this->_ArgList->at(Index)->_Name, ArgTypes[Index]);
-				//Assign the value by "store" instruction
-				IRBuilder.CreateStore(ArgIter, Alloc);
-				//Add to the symbol table
-				__Generator.AddVariable(this->_ArgList->at(Index)->_Name, Alloc);
+				//If the argument is an array, just use its pointer.
+				//Otherwise, create an alloca.
+				if (this->_ArgList->at(Index)->_VarType->GetLLVMType(__Generator)->isArrayTy()) {
+					__Generator.AddVariable(this->_ArgList->at(Index)->_Name, ArgIter);
+				}
+				else {
+					//Create alloca
+					auto Alloc = CreateEntryBlockAlloca(Func, this->_ArgList->at(Index)->_Name, ArgTypes[Index]);
+					//Assign the value by "store" instruction
+					IRBuilder.CreateStore(ArgIter, Alloc);
+					//Add to the symbol table
+					__Generator.AddVariable(this->_ArgList->at(Index)->_Name, Alloc);
+				}
+
 			}
 			//Generate code of the function body
 			__Generator.PushFunction(Func);
@@ -557,6 +575,46 @@ namespace AST {
 				return NULL;
 			}
 			IRBuilder.CreateRet(RetVal);
+		}
+	}
+
+	//Subscript, e.g. a[10]
+	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
+
+	}
+	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
+		//Get the pointer pointing to the array
+		llvm::Value* ArrayPtr = this->_Array->CodeGenPtr(__Generator);
+		if (!ArrayPtr) {
+			std::cout << "Subscription must be used to a left-value." << std::endl;
+			return NULL;
+		}
+		//Get the index value
+		llvm::Value* Subspt = this->_Index->CodeGen(__Generator);
+		if (!(Subspt->getType()->isIntegerTy())) {
+			std::cout << "Subscription should be an integer." << std::endl;
+			return NULL;
+		}
+		//If "ArrayPtr" points to an array, use CreateGEP.
+		//Otherwise, use pointer addition.
+		if (ArrayPtr->getType()->getPointerElementType()->isArrayTy()) {
+			std::vector<llvm::Value*> Index;
+			Index.push_back(IRBuilder.getInt32(0));
+			Index.push_back(Subspt);
+			return IRBuilder.CreateGEP(
+				ArrayPtr->getType()->getPointerElementType(),
+				ArrayPtr,
+				Index
+			);
+		}
+		else {
+			return TypeCasting(
+				IRBuilder.CreateAdd(
+					TypeCasting(ArrayPtr, IRBuilder.getInt64Ty()),
+					ArrayPtr->getType()->getPointerElementType()
+				),
+				ArrayPtr->getType()
+			);
 		}
 	}
 }

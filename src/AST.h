@@ -110,6 +110,7 @@ namespace AST {
 		class BitwiseXORAssign;
 		class BitwiseORAssign;
 		class CommaExpr;
+		class Variable;
 		class Constant;
 }
 
@@ -517,10 +518,15 @@ namespace AST {
 		virtual llvm::Value* CodeGenPtr(CodeGenerator& __Generator) = 0;
 	};
 
+	//Subscript, e.g. a[10]
 	class Subscript : public Expr {
 	public:
 		Expr* _Array;
 		Expr* _Index;
+		Subscript(Expr* __Array, Expr* __Index) : _Array(__Array), _Index(__Index) {}
+		~Subscript(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
 	class SizeOf : public Expr {
 	public:
@@ -741,6 +747,10 @@ namespace AST {
 	public:
 		Expr* _LHS;
 		Expr* _RHS;
+	};
+	class Variable : public Expr {
+	public:
+		std::string _Name;
 	};
 	class Constant : public Expr {
 	public:

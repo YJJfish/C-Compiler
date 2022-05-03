@@ -156,7 +156,46 @@ Due to the complexity of C language, to simplify our project task, we design a C
     };
     ```
 
-    
+9. Array types in C are very complex and confusing. Let's look at the following two examples:
+
+    ```C
+    void foo1(void) {
+    	int a[2];
+    	a[0] = 1;
+    	// %1 = getelementptr inbounds [2 x i32], [2 x i32]* %0, i32 0, i32 0
+    	// store i32 1, i32* %1
+    }
+    void foo2(int a[]) {
+    	a[0] = 1;
+    	// store i32* %0, i32** %3, align 8
+    	// %4 = load i32*, i32** %3, align 8
+    	// %5 = getelementptr inbounds i32, i32* %4, i64 0
+    	// store i32 1, i32* %5, align 4
+    }
+    ```
+
+    Although `a` is an array in both functions, the IR codes totally different. In the first example, `a` is a locally defined array. Therefore, the type of `a` is 
+
+    Array types in our language are different from those in C, in several aspects:
+
+    - When used as function arguments. In C language, only a pointer pointing to the array's first element will be passed. On the contrary, in our language, the whole array will be passed.
+
+      ```c
+      int Sum(int a[20]){
+      	for (int i = 0; i < 20; i++)
+      };
+      ```
+
+      
+
+    In C, subscription can be used to any pointers, e.g.:
+
+    ```C
+    float* a = ...;
+    a[3];				//Legal in C
+    ```
+
+    However, in our
 
 
 
@@ -368,7 +407,12 @@ In conclusion, The grammar of our language is:
   				Expr BXOREQ Expr |
   				Expr BOREQ Expr |
   				Expr COMMA Expr |
+  				IDENTIFIER |
   				Constant
+  
+  ExprList ->		_ExprList COMMA Expr | Expr | ε
+  
+  _ExprList ->	_ExprList COMMA Expr | Expr
   
   Constant ->		STRING |
   				CHARACTER |

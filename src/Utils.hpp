@@ -97,3 +97,5 @@ llvm::BranchInst* TerminateBlockByBr(llvm::BasicBlock* BB) {
 	else
 		return NULL;
 }
+
+size_t SizeOf()
