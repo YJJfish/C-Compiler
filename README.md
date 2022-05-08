@@ -339,7 +339,7 @@ In conclusion, The grammar of our language is:
   
   ReturnStmt->	RETURN | RETURN Expr
   
-  Expr ->			LPAREN Expr RPAREN
+  Expr ->			LPAREN Expr RPAREN |
   				Expr LBRACKET Expr RBRACKET |
   				SIZEOF LPAREN Expr RPAREN |
   				SIZEOF LPAREN VarType RPAREN |
