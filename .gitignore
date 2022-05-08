@@ -4,6 +4,9 @@
 *.vcxproj*
 *.pyc
 
+# Python cache
+**/__pycache__
+
 # Solution Directory
 build/
 

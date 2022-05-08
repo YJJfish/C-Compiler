@@ -75,8 +75,8 @@ Due to the complexity of C language, to simplify our project task, we design a C
     In our language, arrays are defined as follow:
 
     ```C
-    int[20] a, c;
-    int[10] b;
+    int array[20] a, c;
+    int array[10] b;
     ```
 
     The following code shows how to define arrays of float pointers:
@@ -286,7 +286,7 @@ In conclusion, The grammar of our language is:
   				STRUCT LBRACE FieldDecls RBRACE |
   				ENUM LBRACE EnmList RBRACE
   				_VarType PTR |
-  				_VarType LBRACKET INTEGER RBRACKET |
+  				_VarType ARRAY LPAREN INTEGER RPAREN |
   				IDENTIFIER
   
   BuiltInType ->	BOOL | SHORT | INT | LONG | CHAR | FLOAT | DOUBLE | VOID
@@ -333,8 +333,8 @@ In conclusion, The grammar of our language is:
   IfStmt ->		IF LPAREN Expr RPAREN Stmt ELSE Stmt |
   				IF LPAREN Expr RPAREN Stmt
   
-  ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt |
-  				FOR LPAREN VarDecl Expr SEMI Expr LPAREN Stmt
+  ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr RPAREN Stmt |
+  				FOR LPAREN VarDecl Expr SEMI Expr RPAREN Stmt
   
   WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt |
   
