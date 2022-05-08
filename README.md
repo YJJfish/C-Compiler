@@ -338,7 +338,7 @@ In conclusion, The grammar of our language is:
   
   WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt |
   
-  DoStmt ->		DO Stmt SEMI WHILE LPAREN Expr RPAREN
+  DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN
   
   SwitchStmt->	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
   
