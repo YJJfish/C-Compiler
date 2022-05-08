@@ -234,6 +234,7 @@ In conclusion, The grammar of our language is:
   TYPEDEF			"typedef"
   CONST			"const"
   ENUM			"enum"
+  ARRAY			"array"
   PTR				"ptr"
   IF				"if"
   ELSE			"else"
