@@ -339,7 +339,8 @@ In conclusion, The grammar of our language is:
   
   ReturnStmt->	RETURN | RETURN Expr
   
-  Expr ->			Expr LBRACKET Expr RBRACKET |
+  Expr ->			LPAREN Expr RPAREN
+  				Expr LBRACKET Expr RBRACKET |
   				SIZEOF LPAREN Expr RPAREN |
   				SIZEOF LPAREN VarType RPAREN |
   				IDENTIFIER LPAREN ExprList RPAREN |
@@ -386,7 +387,6 @@ In conclusion, The grammar of our language is:
   				Expr BANDEQ Expr |
   				Expr BXOREQ Expr |
   				Expr BOREQ Expr |
-  				Expr COMMA Expr |
   				IDENTIFIER |
   				Constant
   
