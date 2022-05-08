@@ -330,8 +330,8 @@ In conclusion, The grammar of our language is:
   				TypeDecl |
   				SEMI
   
-  IfStmt ->		IF LPAREN Expr RPAREN Stmt |
-  				IF LPAREN Expr RPAREN Stmt ELSE Stmt
+  IfStmt ->		IF LPAREN Expr RPAREN Stmt ELSE Stmt |
+  				IF LPAREN Expr RPAREN Stmt
   
   ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt |
   				FOR LPAREN VarDecl Expr SEMI Expr LPAREN Stmt
