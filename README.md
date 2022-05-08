@@ -259,16 +259,16 @@ In conclusion, The grammar of our language is:
   ```
   Program ->		Decls
   
-  Decls ->		Decls Decl SEMI| ε
+  Decls ->		Decls Decl | ε
   
   Decl ->			FuncDecl | VarDecl | TypeDecl | ε
   
-  FuncDecl ->		VarType IDENTIFIER LPAREN ArgList RPAREN |
+  FuncDecl ->		VarType IDENTIFIER LPAREN ArgList RPAREN SEMI |
   				VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody
   
   FuncBody ->		LBRACE Stmts RBRACE
   
-  VarDecl ->		VarType VarList
+  VarDecl ->		VarType VarList SEMI
   
   VarList ->		_VarList COMMA VarInit | VarInit | ε
   
@@ -277,7 +277,7 @@ In conclusion, The grammar of our language is:
   VarInit ->		IDENTIFIER |
   				IDENTIFIER ASSIGN Expr
   
-  TypeDecl ->		TYPEDEF VarType IDENTIFIER
+  TypeDecl ->		TYPEDEF VarType IDENTIFIER SEMI
   
   VarType ->		_VarType |
   				CONST _VarType
@@ -291,9 +291,9 @@ In conclusion, The grammar of our language is:
   
   BuiltInType ->	BOOL | SHORT | INT | LONG | CHAR | FLOAT | DOUBLE | VOID
   
-  FieldDecls ->	FieldDecls FieldDecl SEMI | ε
+  FieldDecls ->	FieldDecls FieldDecl | ε
   
-  FieldDecl ->	VarType MemList | ε
+  FieldDecl ->	VarType MemList SEMI | SEMI
   
   MemList ->		_MemList COMMA IDENTIFIER | IDENTIFIER | ε
   
@@ -314,18 +314,31 @@ In conclusion, The grammar of our language is:
   
   Block ->		LBRACE Stmts RBRACE
   
-  Stmts ->		Stmts Stmt SEMI | ε
+  Stmts ->		Stmts Stmt | ε
   
-  Stmt ->			Expr | IfStmt | ForStmt | WhileStmt | DoStmt | SwitchStmt | BreakStmt | ContinueStmt |ReturnStmt | Block | VarDecl | TypeDecl | ε
+  Stmt ->			Expr SEMI |
+  				IfStmt |
+  				ForStmt |
+  				WhileStmt |
+  				DoStmt |
+  				SwitchStmt |
+  				BreakStmt |
+  				ContinueStmt |
+  				ReturnStmt |
+  				Block |
+  				VarDecl |
+  				TypeDecl |
+  				SEMI
   
   IfStmt ->		IF LPAREN Expr RPAREN Stmt |
   				IF LPAREN Expr RPAREN Stmt ELSE Stmt
   
-  ForStmt ->		FOR LPAREN Stmt SEMI Expr SEMI Expr LPAREN Stmt
+  ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr LPAREN Stmt |
+  				FOR LPAREN VarDecl Expr SEMI Expr LPAREN Stmt
   
-  WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
+  WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt |
   
-  DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN
+  DoStmt ->		DO Stmt SEMI WHILE LPAREN Expr RPAREN
   
   SwitchStmt->	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
   
@@ -333,11 +346,11 @@ In conclusion, The grammar of our language is:
   
   CaseStmt ->		CASE Expr COLON Stmts | DEFAULT COLON Stmts
   
-  ContinueStmt ->	CONTINUE
+  ContinueStmt ->	CONTINUE SEMI
   
-  BreakStmt ->	BREAK
+  BreakStmt ->	BREAK SEMI
   
-  ReturnStmt->	RETURN | RETURN Expr
+  ReturnStmt->	RETURN SEMI | RETURN Expr SEMI
   
   Expr ->			LPAREN Expr RPAREN |
   				Expr LBRACKET Expr RBRACKET |
