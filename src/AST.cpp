@@ -201,7 +201,7 @@ namespace AST {
 			throw std::logic_error("Typedef " + this->_Alias + " using undefined types.");
 			return NULL;
 		}
-		if (__Generator.AddType(this->_Alias, LLVMType))
+		if (!__Generator.AddType(this->_Alias, LLVMType))
 			throw std::logic_error("Redefinition of typename " + this->_Alias);
 		return NULL;
 	}
@@ -607,11 +607,15 @@ namespace AST {
 	//Subscript, e.g. a[10]
 	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
 		//Get the pointer pointing to the array
-		llvm::Value* ArrayPtr = this->_Array->CodeGenPtr(__Generator);
+		llvm::Value* ArrayPtr = this->_Array->CodeGen(__Generator);
 		if (!ArrayPtr) {
 			throw std::logic_error("Subscription must be used to a left-value.");
 			return NULL;
@@ -641,10 +645,18 @@ namespace AST {
 
 	//Operator sizeof() in C
 	llvm::Value* SizeOf::CodeGen(CodeGenerator& __Generator) {
-		if (this->_Arg1)
+		if (this->_Arg1)//Expression
 			return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(this->_Arg1->CodeGen(__Generator)->getType()));
-		else
+		else if (this->_Arg2)//VarType
 			return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(this->_Arg2->GetLLVMType(__Generator)));
+		else {//Single identifier
+			llvm::Type* Type = __Generator.FindType(this->_Arg3);
+			if (Type) return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(Type));
+			llvm::Value* Var = __Generator.FindVariable(this->_Arg3);
+			if (Var) return IRBuilder.getInt64(__Generator.DL->getTypeAllocSize(Var->getType()->getNonOpaquePointerElementType()));
+			throw std::logic_error(this->_Arg3 + " is neither a type nor a variable.");
+			return NULL;
+		}
 	}
 	llvm::Value* SizeOf::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Sizeof() only returns right-values.");
@@ -821,10 +833,36 @@ namespace AST {
 	//Indirection, e.g. *ptr
 	llvm::Value* Indirection::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		//For array types, firstly, get its first element's pointer
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
+			std::vector<llvm::Value*> Index(2, IRBuilder.getInt32(0));
+			llvm::Value* ElePtr = IRBuilder.CreateGEP(
+				LValue->getType()->getNonOpaquePointerElementType(),
+				LValue,
+				Index
+			);
+			//If the element is still an array, return its pointer.
+			//Otherwise, create load instruction.
+			if (ElePtr->getType()->getNonOpaquePointerElementType()->isArrayTy())
+				return ElePtr;
+			else IRBuilder.CreateLoad(ElePtr->getType()->getNonOpaquePointerElementType(), ElePtr);
+		}
+		//Otherwise, create load.
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* Indirection::CodeGenPtr(CodeGenerator& __Generator) {
-		return this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* Ptr = this->_Operand->CodeGenPtr(__Generator);
+		//If Ptr points to an array, return its first element's pointer
+		if (Ptr->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return IRBuilder.CreateGEP(
+				Ptr->getType()->getNonOpaquePointerElementType(),
+				Ptr,
+				std::vector<llvm::Value*>(2, IRBuilder.getInt32(0))
+			);
+		//Otherwise, return Ptr directly
+		else
+			return Ptr;
 	}
 
 	//Fetch address, e.g. &i

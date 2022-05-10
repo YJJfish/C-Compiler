@@ -294,6 +294,7 @@ ReturnStmt: RETURN SEMI 											{  $$ = new AST::ReturnStmt();   }
 			;
 
 Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$3);   }
+			| SIZEOF LPAREN IDENTIFIER RPAREN						{  $$ = new AST::SizeOf(*$3);   }
 			| SIZEOF LPAREN Expr RPAREN								{  $$ = new AST::SizeOf($3);   }
 			| SIZEOF LPAREN VarType RPAREN							{  $$ = new AST::SizeOf($3);   }
 			| IDENTIFIER LPAREN ExprList RPAREN %prec ARW			{  $$ = new AST::FunctionCall(*$1,$3);   }
