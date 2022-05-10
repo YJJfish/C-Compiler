@@ -11,7 +11,7 @@
 #include <map>
 #include <stack>
 #include <string>
-#include "CodeGenerator.h"
+#include "CodeGenerator.hpp"
 
  //Cast a integer, or a floating-point number, or a pointer to i1 integer.
  //Return NULL if failed.
@@ -22,7 +22,7 @@ llvm::Value* Cast2I1(llvm::Value* Value) {
 	else if (Value->getType()->isIntegerTy())
 		return IRBuilder.CreateICmpNE(Value, llvm::ConstantInt::get((llvm::IntegerType*)Value->getType(), 0, true));
 	else if (Value->getType()->isFloatingPointTy())
-		return IRBuilder.CreateFCmpONE(Value, llvm::ConstantFP::get(Context, llvm::APFloat(0.0)));
+		return IRBuilder.CreateFCmpONE(Value, llvm::ConstantFP::get(Value->getType(), 0.0));
 	else if (Value->getType()->isPointerTy())
 		return IRBuilder.CreateICmpNE(IRBuilder.CreatePtrToInt(Value, IRBuilder.getInt64Ty()), IRBuilder.getInt64(0));
 	else {
@@ -123,7 +123,7 @@ llvm::Value* TypeUpgrading(llvm::Value* Value, llvm::Type* Type) {
 bool TypeUpgrading(llvm::Value*& Value1, llvm::Value*& Value2) {
 	if (Value1->getType()->isIntegerTy() && Value2->getType()->isIntegerTy()) {
 		size_t Bit1 = ((llvm::IntegerType*)Value1->getType())->getBitWidth();
-		size_t Bit2 = ((llvm::IntegerType*)Value1->getType())->getBitWidth();
+		size_t Bit2 = ((llvm::IntegerType*)Value2->getType())->getBitWidth();
 		if (Bit1 < Bit2)
 			Value1 = IRBuilder.CreateIntCast(Value1, Value2->getType(), Bit1 != 1);
 		else if (Bit1 > Bit2)

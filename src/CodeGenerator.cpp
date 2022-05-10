@@ -6,7 +6,7 @@
  ****************************************************
  */
 
-#include "CodeGenerator.h"
+#include "CodeGenerator.hpp"
 
 //The global context.
 llvm::LLVMContext Context;

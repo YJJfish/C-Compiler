@@ -6,7 +6,7 @@
  ****************************************************
  */
 
-#include "CodeGenerator.h"
+#include "CodeGenerator.hpp"
 #include "Utils.hpp"
 
  //Namespace containing all classes involved in the construction of Abstract Syntax Tree (AST)
@@ -24,18 +24,30 @@ namespace AST {
 		//Set the argument type list. We need to call "GetLLVMType"
 		//to change AST::VarType* type to llvm::Type* type
 		std::vector<llvm::Type*> ArgTypes;
+		bool ContainVoidTy = false;
 		for (auto ArgType : *(this->_ArgList)) {
 			llvm::Type* LLVMType = ArgType->_VarType->GetLLVMType(__Generator);
 			if (!LLVMType) {
 				throw std::logic_error("Defining a function " + this->_Name + " using unknown type(s).");
 				return NULL;
 			}
+			//Check if it is a "void" type
+			if (LLVMType->isVoidTy())
+				ContainVoidTy = true;
 			//In C, when the function argument type is an array type, we don't pass the entire array.
 			//Instead, we just pass a pointer pointing to the array.
 			if (LLVMType->isArrayTy())
 				LLVMType = LLVMType->getPointerTo();
 			ArgTypes.push_back(LLVMType);
 		}
+		//Throw an exception if #args >= 2 and the function has a "void" argument.
+		if (ArgTypes.size() >= 2 && ContainVoidTy) {
+			throw std::logic_error("Function " + this->_Name + " has invalid number of arguments with type \"void\".");
+			return NULL;
+		}
+		//Clear the arg list of the function only has one "void" arg.
+		if (ArgTypes.size() == 1 && ContainVoidTy)
+			ArgTypes.clear();
 		//Get function type
 		llvm::FunctionType* FuncType = llvm::FunctionType::get(this->_RetType->GetLLVMType(__Generator), ArgTypes, false);
 		//Create function
@@ -53,21 +65,8 @@ namespace AST {
 				throw std::logic_error("Redefining function " + this->_Name);
 				return NULL;
 			}
-			//Check number of args. If Func took a different number of args, reject.
-			if (Func->arg_size() != ArgTypes.size()) {
-				throw std::logic_error("Redefining function " + this->_Name + " with different number of args.");
-				return NULL;
-			}
-			//Check arg types. If Func took different different arg types, reject.
-			size_t Index = 0;
-			for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++)
-				if (ArgIter->getType() != ArgTypes[Index]) {
-					throw std::logic_error("Redefining function " + this->_Name + " with different arg types.");
-					return NULL;
-				}
-			//Check return type. If Func took different different return types, reject.
-			if (this->_RetType->GetLLVMType(__Generator) != Func->getReturnType()) {
-				throw std::logic_error("Redefining function " + this->_Name + " with different return types.");
+			if (Func->getFunctionType() != FuncType) {
+				throw std::logic_error("Redefining function " + this->_Name + " with different arg types.");
 				return NULL;
 			}
 		}
@@ -119,7 +118,7 @@ namespace AST {
 			//Otherwise, continue generating.
 			if (IRBuilder.GetInsertBlock()->getTerminator())
 				break;
-			else if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
+			else
 				Stmt->CodeGen(__Generator);
 		return NULL;
 	}
@@ -142,8 +141,22 @@ namespace AST {
 					return NULL;
 				}
 				//Assign the initial value by "store" instruction.
-				if (NewVar->_InitialValue)
-					IRBuilder.CreateStore(NewVar->_InitialValue->CodeGen(__Generator), Alloc);
+				if (NewVar->_InitialConstant) {
+					llvm::Value* Initializer = TypeCasting(NewVar->_InitialConstant->CodeGen(__Generator), VarType);
+					if (Initializer == NULL) {
+						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
+						return NULL;
+					}
+					IRBuilder.CreateStore(Initializer, Alloc);
+				}	
+				else if (NewVar->_InitialExpr) {
+					llvm::Value* Initializer = TypeCasting(NewVar->_InitialExpr->CodeGen(__Generator), VarType);
+					if (Initializer == NULL) {
+						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
+						return NULL;
+					}
+					IRBuilder.CreateStore(Initializer, Alloc);
+				}
 				//TODO: llvm::AllocaInst doesn't has the "constant" attribute, so we need to implement it manually.
 				//Unfortunately, I haven't worked out a graceful solution, and the only way I can do is to add a "const"
 				//label to the corresponding entry in the symbol table.
@@ -152,14 +165,14 @@ namespace AST {
 				//create a global variable.
 				//Create the constant initializer
 				llvm::Constant* Initializer = NULL;
-				if (NewVar->_InitialValue)
-					if (!NewVar->_InitialValue->_IsConstant) {
-						//Global variable must be initialized (if any) by a constant.
-						throw std::logic_error("Initializing global variable " + NewVar->_Name + " with non-constant value.");
-						return NULL;
-					}
-					else
-						Initializer = (llvm::Constant*)NewVar->_InitialValue->CodeGen(__Generator);
+				if (NewVar->_InitialConstant) {
+					Initializer = (llvm::Constant*)NewVar->_InitialConstant->CodeGen(__Generator);
+				}
+				else if (NewVar->_InitialExpr) {
+					//Global variable must be initialized (if any) by a constant.
+					throw std::logic_error("Initializing global variable " + NewVar->_Name + " with non-constant value.");
+					return NULL;
+				}
 				//Create a global variable
 				auto Alloc = new llvm::GlobalVariable(
 					*(__Generator.Module),
@@ -231,6 +244,10 @@ namespace AST {
 		if (this->_LLVMType)
 			return this->_LLVMType;
 		llvm::Type* BaseType = this->_BaseType->GetLLVMType(__Generator);
+		if (BaseType->isVoidTy()) {
+			throw std::logic_error("The base type of array cannot be void.");
+			return NULL;
+		}
 		return this->_LLVMType = llvm::ArrayType::get(BaseType, this->_Length);
 	}
 
@@ -241,7 +258,11 @@ namespace AST {
 		//Generate the body of the struct type
 		std::vector<llvm::Type*> Members;
 		for (auto FDecl : *(this->_StructBody))
-			if (FDecl)	//We allow empty-declaration which is represented by NULL pointer.
+			if (FDecl->_VarType->GetLLVMType(__Generator)->isVoidTy()) {
+				throw std::logic_error("The member type of struct cannot be void.");
+				return NULL;
+			}
+			else
 				Members.insert(Members.end(), FDecl->_MemList->size(), FDecl->_VarType->GetLLVMType(__Generator));
 		return this->_LLVMType = llvm::StructType::get(Context, Members);
 	}
@@ -322,8 +343,10 @@ namespace AST {
 		}
 		TerminateBlockByBr(MergeBB);
 		//Finish "Merge" block
-		CurrentFunc->getBasicBlockList().push_back(MergeBB);
-		IRBuilder.SetInsertPoint(MergeBB);
+		if (MergeBB->hasNPredecessorsOrMore(1)) {
+			CurrentFunc->getBasicBlockList().push_back(MergeBB);
+			IRBuilder.SetInsertPoint(MergeBB);
+		}
 		return NULL;
 	}
 
@@ -1357,16 +1380,6 @@ namespace AST {
 		BitwiseOR BOR(this->_LHS, this->_RHS);
 		DirectAssign Ass(this->_LHS, &BOR);
 		return Ass.CodeGenPtr(__Generator);
-	}
-
-	//CommaExpr, e.g. x,y,z,w
-	llvm::Value* CommaExpr::CodeGen(CodeGenerator& __Generator) {
-		this->_LHS->CodeGen(__Generator);
-		return this->_RHS->CodeGen(__Generator);
-	}
-	llvm::Value* CommaExpr::CodeGenPtr(CodeGenerator& __Generator) {
-		this->_LHS->CodeGen(__Generator);
-		return this->_RHS->CodeGenPtr(__Generator);
 	}
 
 	//Variable, e.g. x
