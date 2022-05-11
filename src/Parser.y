@@ -21,6 +21,7 @@ AST::Program *Root;
     std::string *sVal;
     double dVal;
     char cVal;
+	std::string *strVal;
     AST::Program *program;
     AST::Decl *decl;
     AST::Decls *decls; 
@@ -68,12 +69,13 @@ AST::Program *Root;
 		STRUCT TYPEDEF CONST ENUM PTR ARRAY
 		IF ELSE FOR WHILE DO SWITCH CASE DEFAULT 
 		BREAK CONTINUE RETURN SIZEOF TRUE FALSE
-		BOOL SHORT INT LONG CHAR FLOAT DOUBLE VOID		
+		BOOL SHORT INT LONG CHAR FLOAT DOUBLE VOID
 		
 %token<iVal> INTEGER
 %token<sVal> IDENTIFIER 
 %token<dVal> REAL
 %token<cVal> CHARACTER
+%token<strVal> STRING
 %type<program>							Program	
 %type<decl>								Decl	
 %type<decls>							Decls	
@@ -343,7 +345,7 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$
 			| Expr BOREQ Expr										{  $$ = new AST::BitwiseORAssign($1,$3);   }
 			| LPAREN Expr RPAREN									{  $$ = $2;   }
 			| IDENTIFIER											{  $$ = new AST::Variable(*$1);   } 
-			| Constant												{  $$ = $1;   }												
+			| Constant												{  std::cout << "Expr -> Constant" << std::endl; $$ = $1;   }												
 			;
 
 ExprList:	_ExprList COMMA Expr									{  $$ = $1; $$->push_back($3);   }
@@ -357,8 +359,9 @@ _ExprList:	_ExprList COMMA Expr 									{  $$ = $1; $$->push_back($3);   }
 
 Constant:	TRUE													{  $$ =  new AST::Constant(true);   }
 			| FALSE													{  $$ =  new AST::Constant(false);   }
-			| CHARACTER												{  $$ =  new AST::Constant($1);   }
+			| CHARACTER												{  std::cout << "Constant -> CHARACTER" << std::endl; $$ =  new AST::Constant($1);   }
 			| INTEGER 												{  $$ =  new AST::Constant($1);   }
-			| REAL													{  $$ =  new AST::Constant($1);   }								
+			| REAL													{  $$ =  new AST::Constant($1);   }
+			| STRING												{  $$ =  new AST::GlobalString(*$1);   }
 			;
 %%

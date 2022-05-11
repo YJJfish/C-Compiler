@@ -127,6 +127,14 @@ namespace AST {
 	llvm::Value* VarDecl::CodeGen(CodeGenerator& __Generator) {
 		//Get the llvm type
 		llvm::Type* VarType = this->_VarType->GetLLVMType(__Generator);
+		if (VarType == NULL) {
+			throw std::logic_error("Defining variables with unknown type.");
+			return NULL;
+		}
+		if (VarType->isVoidTy()) {
+			throw std::logic_error("Cannot define \"void\" variables.");
+			return NULL;
+		}
 		//Create variables one by one.
 		for (auto& NewVar : *(this->_VarList)) {
 			//Determine whether the declaration is inside a function.
@@ -166,7 +174,11 @@ namespace AST {
 				//Create the constant initializer
 				llvm::Constant* Initializer = NULL;
 				if (NewVar->_InitialConstant) {
-					Initializer = (llvm::Constant*)NewVar->_InitialConstant->CodeGen(__Generator);
+					Initializer = (llvm::Constant*)TypeCasting(NewVar->_InitialConstant->CodeGen(__Generator), VarType);
+					if (Initializer == NULL) {
+						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
+						return NULL;
+					}
 				}
 				else if (NewVar->_InitialExpr) {
 					//Global variable must be initialized (if any) by a constant.
@@ -490,7 +502,7 @@ namespace AST {
 		}
 		return NULL;
 	}
-
+	
 	//Switch statement
 	llvm::Value* SwitchStmt::CodeGen(CodeGenerator& __Generator) {
 		llvm::Function* CurrentFunc = __Generator.GetCurrentFunction();
@@ -860,14 +872,20 @@ namespace AST {
 				Ptr,
 				std::vector<llvm::Value*>(2, IRBuilder.getInt32(0))
 			);
-		//Otherwise, return Ptr directly
-		else
-			return Ptr;
+		//Otherwise, return the element pointed by Ptr. This element must be a pointer type. 
+		else {
+			llvm::Value* Ele = IRBuilder.CreateLoad(Ptr->getType()->getNonOpaquePointerElementType(), Ptr);
+			if (!Ele->getType()->isPointerTy()) {
+				throw std::logic_error("Address operator \"&\" only applies on pointers or arrays.");
+				return NULL;
+			}
+			return Ele;
+		}
 	}
 
 	//Fetch address, e.g. &i
 	llvm::Value* AddressOf::CodeGen(CodeGenerator& __Generator) {
-		return this->CodeGenPtr(__Generator);
+		return this->_Operand->CodeGenPtr(__Generator);
 	}
 	llvm::Value* AddressOf::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Address operator \"&\" only returns right-values.");
@@ -1242,35 +1260,13 @@ namespace AST {
 		}
 		llvm::Value* True = this->_Then->CodeGen(__Generator);
 		llvm::Value* False = this->_Else->CodeGen(__Generator);
-		//Arithmatic (c)*x+(!c)*y
-		if (TypeUpgrading(True, False)) {
-			llvm::Value* One = TypeCasting(Condition, True->getType());
-			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), True->getType());
-			if (True->getType()->isIntegerTy()) {
-				return IRBuilder.CreateAdd(
-					IRBuilder.CreateMul(One, True),
-					IRBuilder.CreateMul(Zero, False)
-				);
-			}
-			else {
-				return IRBuilder.CreateFAdd(
-					IRBuilder.CreateFMul(One, True),
-					IRBuilder.CreateFMul(Zero, False)
-				);
-			}
+		if (True->getType() == False->getType() || TypeUpgrading(True, False)) {
+			return IRBuilder.CreateSelect(Condition, True, False);
 		}
-		//Pointer (c)*p1+(!c)*p2
-		else if (True->getType()->isPointerTy() && True->getType() == False->getType()) {
-			llvm::Value* One = TypeCasting(Condition, IRBuilder.getInt64Ty());
-			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), IRBuilder.getInt64Ty());
-			return IRBuilder.CreateIntToPtr(
-				IRBuilder.CreateAdd(
-					IRBuilder.CreateMul(One, IRBuilder.CreatePtrToInt(True, IRBuilder.getInt64Ty())),
-					IRBuilder.CreateMul(Zero, IRBuilder.CreatePtrToInt(False, IRBuilder.getInt64Ty()))
-				), True->getType());
+		else {
+			throw std::domain_error("Thernary operand \" ? : \" using unsupported type combination.");
+			return NULL;
 		}
-		throw std::domain_error("Thernary operand \" ? : \" using unsupported type combination.");
-		return NULL;
 	}
 	llvm::Value* TernaryCondition::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* Condition = Cast2I1(this->_Condition->CodeGen(__Generator));
@@ -1280,17 +1276,11 @@ namespace AST {
 		}
 		llvm::Value* True = this->_Then->CodeGenPtr(__Generator);
 		llvm::Value* False = this->_Else->CodeGenPtr(__Generator);
-		if (True->getType() == False->getType()) {
-			llvm::Value* One = TypeCasting(Condition, IRBuilder.getInt64Ty());
-			llvm::Value* Zero = TypeCasting(IRBuilder.CreateNeg(Condition), IRBuilder.getInt64Ty());
-			return IRBuilder.CreateIntToPtr(
-				IRBuilder.CreateAdd(
-					IRBuilder.CreateMul(One, IRBuilder.CreatePtrToInt(True, IRBuilder.getInt64Ty())),
-					IRBuilder.CreateMul(Zero, IRBuilder.CreatePtrToInt(False, IRBuilder.getInt64Ty()))
-				), True->getType());
+		if (True->getType() != False->getType()) {
+			throw std::domain_error("When using thernary expressions \" ? : \" as left-values, the latter two operands must be of the same type.");
+			return NULL;
 		}
-		throw std::domain_error("When using thernary expressions \" ? : \" as left-values, the latter two operands must be of the same type.");
-		return NULL;
+		return IRBuilder.CreateSelect(Condition, True, False);
 	}
 
 	//DirectAssign, e.g. x=y
@@ -1453,6 +1443,15 @@ namespace AST {
 	}
 	llvm::Value* Constant::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Constant is a right-value.");
+		return NULL;
+	}
+
+	//Global string, e.g. "123", "3\"124\t\n"
+	llvm::Value* GlobalString::CodeGen(CodeGenerator& __Generator) {
+		return IRBuilder.CreateGlobalStringPtr(this->_Content.c_str());
+	}
+	llvm::Value* GlobalString::CodeGenPtr(CodeGenerator& __Generator) {
+		throw std::logic_error("Global string (constant) is a right-value.");
 		return NULL;
 	}
 }

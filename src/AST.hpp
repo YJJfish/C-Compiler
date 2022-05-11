@@ -140,6 +140,7 @@ namespace AST {
 		class BitwiseORAssign;
 		class Variable;
 		class Constant;
+			class GlobalString;
 }
 
 //Class definitions
@@ -556,7 +557,7 @@ namespace AST {
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
-
+	
 	//Operator sizeof() in C
 	class SizeOf : public Expr {
 	public:
@@ -1027,6 +1028,14 @@ namespace AST {
 		Constant(double __Real) :
 			_Type(BuiltInType::TypeID::_Double), _Bool(false), _Character('\0'), _Integer(0), _Real(__Real) {}
 		~Constant(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+	};
+
+	class GlobalString : public Constant {
+	public:
+		std::string _Content;
+		GlobalString(const std::string& __Content) : Constant(0), _Content(__Content) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};

@@ -117,7 +117,8 @@
      INTEGER = 333,
      IDENTIFIER = 334,
      REAL = 335,
-     CHARACTER = 336
+     CHARACTER = 336,
+     STRING = 337
    };
 #endif
 
@@ -134,6 +135,7 @@ typedef union YYSTYPE
     std::string *sVal;
     double dVal;
     char cVal;
+	std::string *strVal;
     AST::Program *program;
     AST::Decl *decl;
     AST::Decls *decls; 
@@ -172,7 +174,7 @@ typedef union YYSTYPE
 
 
 /* Line 1676 of yacc.c  */
-#line 176 "Parser.hpp"
+#line 178 "Parser.hpp"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
