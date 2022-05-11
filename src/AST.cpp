@@ -550,8 +550,10 @@ namespace AST {
 		__Generator.PopVariableTable();
 		__Generator.PopTypedefTable();
 		//Finish "SwitchEnd" block
-		CurrentFunc->getBasicBlockList().push_back(CaseBB.back());
-		IRBuilder.SetInsertPoint(CaseBB.back());
+		if (CaseBB.back()->hasNPredecessorsOrMore(1)) {
+			CurrentFunc->getBasicBlockList().push_back(CaseBB.back());
+			IRBuilder.SetInsertPoint(CaseBB.back());
+		}
 		return NULL;
 	}
 
@@ -759,7 +761,12 @@ namespace AST {
 
 	//Type cast, e.g. (float)n, (int)1.0
 	llvm::Value* TypeCast::CodeGen(CodeGenerator& __Generator) {
-		return TypeCasting(this->_Operand->CodeGen(__Generator), this->_VarType->GetLLVMType(__Generator));
+		llvm::Value* Ret = TypeCasting(this->_Operand->CodeGen(__Generator), this->_VarType->GetLLVMType(__Generator));
+		if (Ret == NULL) {
+			throw std::logic_error("Unable to do type casting.");
+			return NULL;
+		}
+		return Ret;
 	}
 	llvm::Value* TypeCast::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Type casting only returns right-values.");
@@ -919,16 +926,7 @@ namespace AST {
 	llvm::Value* Division::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (TypeUpgrading(LHS, RHS)) {
-			if (LHS->getType()->isIntegerTy())
-				return IRBuilder.CreateSDiv(LHS, RHS);
-			else
-				return IRBuilder.CreateFDiv(LHS, RHS);
-		}
-		else {
-			throw std::logic_error("Division operator \"/\" must only be applied to integers or floating-point numbers.");
-			return NULL;
-		}
+		return CreateDiv(LHS, RHS, __Generator);
 	}
 	llvm::Value* Division::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Division operator \"/\" only returns right-values.");
@@ -939,16 +937,7 @@ namespace AST {
 	llvm::Value* Multiplication::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (TypeUpgrading(LHS, RHS)) {
-			if (LHS->getType()->isIntegerTy())
-				return IRBuilder.CreateMul(LHS, RHS);
-			else
-				return IRBuilder.CreateFMul(LHS, RHS);
-		}
-		else {
-			throw std::logic_error("Multiplication operator \"*\" must only be applied to integers or floating-point numbers.");
-			return NULL;
-		}
+		return CreateMul(LHS, RHS, __Generator);
 	}
 	llvm::Value* Multiplication::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Multiplication operator \"*\" only returns right-values.");
@@ -959,12 +948,7 @@ namespace AST {
 	llvm::Value* Modulo::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Modulo operator \"%\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateSRem(LHS, RHS);
+		return CreateMod(LHS, RHS, __Generator);
 	}
 	llvm::Value* Modulo::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Modulo operator \"%\" only returns right-values.");
@@ -997,12 +981,7 @@ namespace AST {
 	llvm::Value* LeftShift::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateShl(LHS, RHS);
+		return CreateShl(LHS, RHS, __Generator);
 	}
 	llvm::Value* LeftShift::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Left shifting operator \"<<\" only returns right-values.");
@@ -1013,12 +992,7 @@ namespace AST {
 	llvm::Value* RightShift::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateAShr(LHS, RHS);
+		return CreateShr(LHS, RHS, __Generator);
 	}
 	llvm::Value* RightShift::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Right shifting operator \">>\" only returns right-values.");
@@ -1038,9 +1012,9 @@ namespace AST {
 		}
 		//Pointer compare
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
-			return IRBuilder.CreateICmpSGT(
-				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-				IRBuilder.getInt64(0)
+			return IRBuilder.CreateICmpUGT(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
 		throw std::domain_error("Comparison \">\" using unsupported type combination.");
@@ -1063,9 +1037,9 @@ namespace AST {
 		}
 		//Pointer compare
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
-			return IRBuilder.CreateICmpSGE(
-				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-				IRBuilder.getInt64(0)
+			return IRBuilder.CreateICmpUGE(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
 		throw std::domain_error("Comparison \">=\" using unsupported type combination.");
@@ -1088,9 +1062,9 @@ namespace AST {
 		}
 		//Pointer compare
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
-			return IRBuilder.CreateICmpSLT(
-				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-				IRBuilder.getInt64(0)
+			return IRBuilder.CreateICmpULT(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
 		throw std::domain_error("Comparison \"<\" using unsupported type combination.");
@@ -1113,9 +1087,9 @@ namespace AST {
 		}
 		//Pointer compare
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
-			return IRBuilder.CreateICmpSLE(
-				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-				IRBuilder.getInt64(0)
+			return IRBuilder.CreateICmpULE(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
 		throw std::domain_error("Comparison \"<=\" using unsupported type combination.");
@@ -1150,8 +1124,8 @@ namespace AST {
 		//Pointer compare
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
 			return IRBuilder.CreateICmpNE(
-				IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-				IRBuilder.getInt64(0)
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
 		throw std::domain_error("Comparison \"!=\" using unsupported type combination.");
@@ -1165,12 +1139,7 @@ namespace AST {
 	llvm::Value* BitwiseAND::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Bitwise AND operator \"&\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateAnd(LHS, RHS);
+		return CreateBitwiseAND(LHS, RHS, __Generator);
 	}
 	llvm::Value* BitwiseAND::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Bitwise AND operator \"&\" only returns right-values.");
@@ -1181,12 +1150,7 @@ namespace AST {
 	llvm::Value* BitwiseXOR::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Bitwise XOR operator \"^\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateXor(LHS, RHS);
+		return CreateBitwiseXOR(LHS, RHS, __Generator);
 	}
 	llvm::Value* BitwiseXOR::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Bitwise XOR operator \"^\" only returns right-values.");
@@ -1197,12 +1161,7 @@ namespace AST {
 	llvm::Value* BitwiseOR::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGen(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
-			throw std::domain_error("Bitwise OR operator \"|\" must be applied to 2 integers.");
-			return NULL;
-		}
-		TypeUpgrading(LHS, RHS);
-		return IRBuilder.CreateOr(LHS, RHS);
+		return CreateBitwiseOR(LHS, RHS, __Generator);
 	}
 	llvm::Value* BitwiseOR::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Bitwise OR operator \"|\" only returns right-values.");
@@ -1291,13 +1250,7 @@ namespace AST {
 	llvm::Value* DirectAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
 		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
-		RHS = TypeCasting(RHS, LHS->getType()->getNonOpaquePointerElementType());
-		if (RHS == NULL) {
-			throw std::domain_error("Assignment with values that cannot be cast to the target type.");
-			return NULL;
-		}
-		IRBuilder.CreateStore(RHS, LHS);
-		return LHS;
+		return CreateAssignment(LHS, RHS, __Generator);
 	}
 
 	//DivAssign, e.g. x/=y
@@ -1306,9 +1259,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* DivAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		Division Div(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &Div);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateDiv(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//MulAssign, e.g. x*=y
@@ -1317,9 +1278,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* MulAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		Multiplication Mul(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &Mul);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateMul(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//ModAssign, e.g. x%=y
@@ -1328,9 +1297,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* ModAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		Modulo Mod(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &Mod);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateMod(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//AddAssign, e.g. x+=y
@@ -1339,9 +1316,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* AddAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		Addition Add(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &Add);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateAdd(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//SubAssign, e.g. x-=y
@@ -1350,9 +1335,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* SubAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		Subtraction Sub(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &Sub);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateSub(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//SHLAssign, e.g. x<<=y
@@ -1361,9 +1354,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* SHLAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		LeftShift SHL(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &SHL);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateShl(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//SHRAssign, e.g. x>>=y
@@ -1372,9 +1373,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* SHRAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		RightShift SHR(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &SHR);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateShr(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//BitwiseANDAssign, e.g. x&=y
@@ -1383,9 +1392,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* BitwiseANDAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		BitwiseAND BAND(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &BAND);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateBitwiseAND(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//BitwiseXORAssign, e.g. x^=y
@@ -1394,9 +1411,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* BitwiseXORAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		BitwiseXOR BXOR(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &BXOR);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateBitwiseXOR(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//BitwiseORAssign, e.g. x|=y
@@ -1405,9 +1430,17 @@ namespace AST {
 		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* BitwiseORAssign::CodeGenPtr(CodeGenerator& __Generator) {
-		BitwiseOR BOR(this->_LHS, this->_RHS);
-		DirectAssign Ass(this->_LHS, &BOR);
-		return Ass.CodeGenPtr(__Generator);
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS,
+			CreateBitwiseOR(
+				IRBuilder.CreateLoad(
+					LHS->getType()->getNonOpaquePointerElementType(),
+					LHS),
+				RHS,
+				__Generator),
+			__Generator
+		);
 	}
 
 	//Variable, e.g. x

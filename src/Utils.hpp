@@ -173,8 +173,8 @@ llvm::Value* CreateCmpEQ(llvm::Value* LHS, llvm::Value* RHS) {
 	//Pointer compare
 	if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
 		return IRBuilder.CreateICmpEQ(
-			IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS),
-			IRBuilder.getInt64(0)
+			IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+			IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 		);
 	}
 	throw std::domain_error("Comparison \"==\" using unsupported type combination.");
@@ -235,7 +235,7 @@ llvm::Value* CreateAdd(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 	return NULL;
 }
 
-//Create an subtraction instruction. This function will automatically do type casting
+//Create a subtraction instruction. This function will automatically do type casting
 //if the two input values are not of the same type.
 //Supported:
 //1. Int - Int -> Int			(TypeUpgrading)
@@ -267,4 +267,144 @@ llvm::Value* CreateSub(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 		return IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS);
 	throw std::logic_error("Subtraction using unsupported type combination.");
 	return NULL;
+}
+
+//Create a multiplication instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int * Int -> Int			(TypeUpgrading)
+//2. Int * FP -> FP				(TypeUpgrading)
+//3. FP * Int -> FP				(TypeUpgrading)
+//4. FP * FP -> FP				(TypeUpgrading)
+llvm::Value* CreateMul(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (TypeUpgrading(LHS, RHS)) {
+		if (LHS->getType()->isIntegerTy())
+			return IRBuilder.CreateMul(LHS, RHS);
+		else
+			return IRBuilder.CreateFMul(LHS, RHS);
+	}
+	else {
+		throw std::logic_error("Multiplication operator \"*\" must only be applied to integers or floating-point numbers.");
+		return NULL;
+	}
+}
+
+//Create a division instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int / Int -> Int			(TypeUpgrading)
+//2. Int / FP -> FP				(TypeUpgrading)
+//3. FP / Int -> FP				(TypeUpgrading)
+//4. FP / FP -> FP				(TypeUpgrading)
+llvm::Value* CreateDiv(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (TypeUpgrading(LHS, RHS)) {
+		if (LHS->getType()->isIntegerTy())
+			return IRBuilder.CreateSDiv(LHS, RHS);
+		else
+			return IRBuilder.CreateFDiv(LHS, RHS);
+	}
+	else {
+		throw std::logic_error("Division operator \"/\" must only be applied to integers or floating-point numbers.");
+		return NULL;
+	}
+}
+
+//Create a modulo instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int % Int -> Int			(TypeUpgrading)
+llvm::Value* CreateMod(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Modulo operator \"%\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateSRem(LHS, RHS);
+}
+
+//Create a shl instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int << Int -> Int			(TypeUpgrading)
+llvm::Value* CreateShl(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateShl(LHS, RHS);
+}
+
+//Create a shr instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int >> Int -> Int			(TypeUpgrading)
+llvm::Value* CreateShr(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Left shifting operator \"<<\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateAShr(LHS, RHS);
+}
+
+//Create a bitwise AND instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int & Int -> Int			(TypeUpgrading)
+llvm::Value* CreateBitwiseAND(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Bitwise AND operator \"&\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateAnd(LHS, RHS);
+}
+
+//Create a bitwise OR instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int | Int -> Int			(TypeUpgrading)
+llvm::Value* CreateBitwiseOR(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Bitwise OR operator \"|\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateOr(LHS, RHS);
+}
+
+//Create a bitwise XOR instruction. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int ^ Int -> Int			(TypeUpgrading)
+llvm::Value* CreateBitwiseXOR(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	if (!(LHS->getType()->isIntegerTy() && RHS->getType()->isIntegerTy())) {
+		throw std::domain_error("Bitwise XOR operator \"^\" must be applied to 2 integers.");
+		return NULL;
+	}
+	TypeUpgrading(LHS, RHS);
+	return IRBuilder.CreateXor(LHS, RHS);
+}
+
+//Create an assignment. This function will automatically do type casting
+//if the two input values are not of the same type.
+//Supported:
+//1. Int = FP
+//2. Int = Int
+//3. Int = Pointer
+//4. FP = Int
+//5. FP = FP
+//6. Pointer = Int
+//7. Pointer = Pointer
+//8. Exactly the same type assignment
+//The "pLHS" argument should be a pointer pointing to the variable (the left-value in C)
+llvm::Value* CreateAssignment(llvm::Value* pLHS, llvm::Value* RHS, CodeGenerator& Generator) {
+	RHS = TypeCasting(RHS, pLHS->getType()->getNonOpaquePointerElementType());
+	if (RHS == NULL) {
+		throw std::domain_error("Assignment with values that cannot be cast to the target type.");
+		return NULL;
+	}
+	IRBuilder.CreateStore(RHS, pLHS);
+	return pLHS;
 }

@@ -1036,6 +1036,7 @@ namespace AST {
 	public:
 		std::string _Content;
 		GlobalString(const std::string& __Content) : Constant(0), _Content(__Content) {}
+		~GlobalString(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};
