@@ -2,7 +2,7 @@
 #include "AST.hpp"
 #include "CodeGenerator.hpp"
 #include "Parser.hpp"
-#include "ArgsParser.h"
+#include "ArgsParser.hpp"
 
 
 extern int yyparse();
