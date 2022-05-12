@@ -3,6 +3,19 @@
 #include <map>
 #include <string>
 
+template <typename T>
+T convertStringToValue(std::string str) {
+	return (T)std::stod(str);
+}
+template <> float convertStringToValue(std::string str) { return std::stof(str); }
+template <> int convertStringToValue(std::string str) { return std::stoi(str); }
+template <> std::string convertStringToValue(std::string str) { return str; }
+template <> bool convertStringToValue(std::string str) {
+	if (str == "true") return true;
+	if (str == "false") return false;
+	return convertStringToValue<int>(str) != 0;
+}
+
 class ArgsParser{
 	std::vector<std::string> args;
 	std::map<std::string, std::string> argMap;
@@ -42,16 +55,3 @@ public:
 		return true;
 	}
 };
-
-template <typename T>
-T convertStringToValue(std::string str) {
-	return (T)std::stod(str);
-}
-template <> float convertStringToValue(std::string str) { return std::stof(str); }
-template <> int convertStringToValue(std::string str) { return std::stoi(str); }
-template <> std::string convertStringToValue(std::string str) { return str; }
-template <> bool convertStringToValue(std::string str) {
-	if (str == "true") return true;
-	if (str == "false") return false;
-	return convertStringToValue<int>(str) != 0;
-}
