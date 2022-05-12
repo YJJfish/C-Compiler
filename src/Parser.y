@@ -115,6 +115,7 @@ AST::Program *Root;
 %nonassoc ELSE
 
 %left	COMMA //15
+%left	FUNC_CALL_ARG_LIST
 %right	ASSIGN ADDEQ SUBEQ MULEQ DIVEQ MODEQ SHLEQ SHREQ BANDEQ BOREQ BXOREQ //14
 %right	QUES COLON //13
 %left	OR//12
@@ -299,7 +300,7 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$
 			| SIZEOF LPAREN IDENTIFIER RPAREN						{  $$ = new AST::SizeOf(*$3);   }
 			| SIZEOF LPAREN Expr RPAREN								{  $$ = new AST::SizeOf($3);   }
 			| SIZEOF LPAREN VarType RPAREN							{  $$ = new AST::SizeOf($3);   }
-			| IDENTIFIER LPAREN ExprList RPAREN %prec ARW			{  $$ = new AST::FunctionCall(*$1,$3);   }
+			| IDENTIFIER LPAREN ExprList RPAREN						{  std::cout << "Expr -> IDENTIFIER LPAREN ExprList RPAREN" << std::endl; $$ = new AST::FunctionCall(*$1,$3);   }
 			| Expr DOT IDENTIFIER									{  $$ = new AST::StructReference($1,*$3);   }
 			| Expr ARW IDENTIFIER									{  $$ = new AST::StructDereference($1,*$3);   }
 			| ADD Expr	%prec NOT									{  $$ = new AST::UnaryPlus($2);   }
@@ -346,15 +347,16 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$
 			| LPAREN Expr RPAREN									{  $$ = $2;   }
 			| IDENTIFIER											{  $$ = new AST::Variable(*$1);   } 
 			| Constant												{  std::cout << "Expr -> Constant" << std::endl; $$ = $1;   }												
+			| Expr COMMA Expr										{  std::cout << "Expr -> Expr COMMA Expr" << std::endl; $$ = new AST::CommaExpr($1, $3);   }
 			;
 
-ExprList:	_ExprList COMMA Expr									{  $$ = $1; $$->push_back($3);   }
-			| Expr													{  $$ = new AST::ExprList(); $$->push_back($1);   }
-			|														{  $$ = new AST::ExprList();   }
+ExprList:	_ExprList COMMA Expr									{  std::cout << "ExprList -> _ExprList COMMA Expr" << std::endl; $$ = $1; $$->push_back($3);   }
+			| Expr %prec FUNC_CALL_ARG_LIST							{  std::cout << "ExprList -> Expr" << std::endl; $$ = new AST::ExprList(); $$->push_back($1);   }
+			|														{  std::cout << "ExprList -> e" << std::endl; $$ = new AST::ExprList();   }
 			;
 
-_ExprList:	_ExprList COMMA Expr 									{  $$ = $1; $$->push_back($3);   }
-			| Expr													{  $$ = new AST::ExprList(); $$->push_back($1);   }
+_ExprList:	_ExprList COMMA Expr 									{  std::cout << "_ExprList -> _ExprList COMMA Expr" << std::endl; $$ = $1; $$->push_back($3);   }
+			| Expr %prec FUNC_CALL_ARG_LIST							{  std::cout << "_ExprList -> Expr" << std::endl; $$ = new AST::ExprList(); $$->push_back($1);   }
 			;
 
 Constant:	TRUE													{  $$ =  new AST::Constant(true);   }

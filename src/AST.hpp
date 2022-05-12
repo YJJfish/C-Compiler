@@ -138,6 +138,7 @@ namespace AST {
 		class BitwiseANDAssign;
 		class BitwiseXORAssign;
 		class BitwiseORAssign;
+		class CommaExpr;
 		class Variable;
 		class Constant;
 			class GlobalString;
@@ -999,6 +1000,16 @@ namespace AST {
 		Expr* _RHS;
 		BitwiseORAssign(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
 		~BitwiseORAssign(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+	};
+
+	class CommaExpr : public Expr {
+	public:
+		Expr* _LHS;
+		Expr* _RHS;
+		CommaExpr(Expr* __LHS, Expr* __RHS) : _LHS(__LHS), _RHS(__RHS) {}
+		~CommaExpr(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
 	};

@@ -1443,6 +1443,16 @@ namespace AST {
 		);
 	}
 
+	//Comma expression, e.g. a,b,c,1
+	llvm::Value* CommaExpr::CodeGen(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGen(__Generator);
+	}
+	llvm::Value* CommaExpr::CodeGenPtr(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGenPtr(__Generator);
+	}
+
 	//Variable, e.g. x
 	llvm::Value* Variable::CodeGen(CodeGenerator& __Generator) {
 		llvm::Value* LValue = this->CodeGenPtr(__Generator);
