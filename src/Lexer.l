@@ -27,6 +27,7 @@ char Escape2Char(char ch){
 }
 %}
 
+%option never-interactive
 %option outfile="Lexer.cpp"
 
 %%

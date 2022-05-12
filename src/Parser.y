@@ -134,50 +134,50 @@ AST::Program *Root;
 %start Program
 %%
 //
-Program:	Decls													{  std::cout << "Program -> Decls" << std::endl; $$ = new AST::Program($1); Root = $$;   }
+Program:	Decls													{  $$ = new AST::Program($1); Root = $$;   }
 			;
 			
-Decls:		Decls Decl												{  std::cout << "Decls -> Decls Decl" << std::endl; $$ = $1; $$->push_back($2);   }
-			|														{  std::cout << "Decls -> e" << std::endl; $$ = new AST::Decls();   }
+Decls:		Decls Decl												{  $$ = $1; $$->push_back($2);   }
+			|														{  $$ = new AST::Decls();   }
 			;
 
-Decl:		FuncDecl												{  std::cout << "Decl -> FuncDecl" << std::endl; $$ = $1;   }
-			| VarDecl												{  std::cout << "Decl -> VarDecl" << std::endl; $$ = $1;   }
-			| TypeDecl												{  std::cout << "Decl -> TypeDecl" << std::endl; $$ = $1;   }
+Decl:		FuncDecl												{  $$ = $1;   }
+			| VarDecl												{  $$ = $1;   }
+			| TypeDecl												{  $$ = $1;   }
 			;
 
-FuncDecl:	VarType IDENTIFIER LPAREN ArgList RPAREN SEMI 			{  std::cout << "FuncDecl -> VarType IDENTIFIER LPAREN ArgList RPAREN SEMI" << std::endl; $$ = new AST::FuncDecl($1,*$2,$4);   }
-			| VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody		{  std::cout << "FuncDecl -> VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody" << std::endl; $$ = new AST::FuncDecl($1,*$2,$4,$6);   }
+FuncDecl:	VarType IDENTIFIER LPAREN ArgList RPAREN SEMI 			{  $$ = new AST::FuncDecl($1,*$2,$4);   }
+			| VarType IDENTIFIER LPAREN ArgList RPAREN FuncBody		{  $$ = new AST::FuncDecl($1,*$2,$4,$6);   }
 			;
 
-FuncBody:	LBRACE Stmts RBRACE										{  std::cout << "FuncBody -> LBRACE Stmts RBRACE" << std::endl; $$ = new AST::FuncBody($2);   }
+FuncBody:	LBRACE Stmts RBRACE										{  $$ = new AST::FuncBody($2);   }
 			;
 
-VarDecl:	VarType VarList	SEMI   									{  std::cout << "VarDecl -> VarType VarList SEMI" << std::endl; $$ = new AST::VarDecl($1,$2);   }
+VarDecl:	VarType VarList	SEMI   									{  $$ = new AST::VarDecl($1,$2);   }
 			;
 
-VarList:	_VarList COMMA VarInit									{  std::cout << "VarList -> _VarList COMMA VarInit" << std::endl; $$ = $1; $$->push_back($3);   }
-			| VarInit												{  std::cout << "VarList -> VarInit" << std::endl; $$ = new AST::VarList(); $$->push_back($1);   }											
-			|														{  std::cout << "VarList -> e" << std::endl; $$ = new AST::VarList();   }
+VarList:	_VarList COMMA VarInit									{  $$ = $1; $$->push_back($3);   }
+			| VarInit												{  $$ = new AST::VarList(); $$->push_back($1);   }											
+			|														{  $$ = new AST::VarList();   }
 			;
 
-_VarList:	_VarList COMMA VarInit									{  std::cout << "VarList -> _VarList COMMA VarInit" << std::endl; $$ = $1; $$->push_back($3);   }
-			| VarInit												{  std::cout << "VarList -> VarInit" << std::endl; $$ = new AST::VarList(); $$->push_back($1);   }	
+_VarList:	_VarList COMMA VarInit									{  $$ = $1; $$->push_back($3);   }
+			| VarInit												{  $$ = new AST::VarList(); $$->push_back($1);   }	
 			;
 
-VarInit:	IDENTIFIER												{  std::cout << "VarInit -> IDENTIFIER" << std::endl; $$ = new AST::VarInit(*$1);   }
-			| IDENTIFIER ASSIGN Constant							{  std::cout << "VarInit -> IDENTIFIER ASSIGN Expr" << std::endl; $$ = new AST::VarInit(*$1,$3);   }
-			| IDENTIFIER ASSIGN Expr								{  std::cout << "VarInit -> IDENTIFIER ASSIGN Expr" << std::endl; $$ = new AST::VarInit(*$1,$3);   }
+VarInit:	IDENTIFIER												{  $$ = new AST::VarInit(*$1);   }
+			| IDENTIFIER ASSIGN Constant							{  $$ = new AST::VarInit(*$1,$3);   }
+			| IDENTIFIER ASSIGN Expr								{  $$ = new AST::VarInit(*$1,$3);   }
 			;
 
-TypeDecl:	TYPEDEF VarType IDENTIFIER	SEMI						{  std::cout << "TypeDecl -> TYPEDEF VarType IDENTIFIER SEMI" << std::endl; $$ = new AST::TypeDecl($2,*$3);   }
+TypeDecl:	TYPEDEF VarType IDENTIFIER	SEMI						{  $$ = new AST::TypeDecl($2,*$3);   }
 			;
 
-VarType:	_VarType												{  std::cout << "VarType -> _VarType" << std::endl; $$ = $1;   }
+VarType:	_VarType												{  $$ = $1;   }
 			| CONST _VarType										{  $$ = $2; $$->SetConst();   }
 			;
 
-_VarType:	BuiltInType												{  std::cout << "_VarType -> BuiltInType" << std::endl; $$ = $1;   }
+_VarType:	BuiltInType												{  $$ = $1;   }
 			| STRUCT LBRACE FieldDecls RBRACE						{  $$ = new AST::StructType($3);   }
 			| ENUM LBRACE EnmList RBRACE							{  $$ = new AST::EnumType($3);   }
 			| _VarType PTR											{  $$ = new AST::PointerType($1);   }
@@ -187,7 +187,7 @@ _VarType:	BuiltInType												{  std::cout << "_VarType -> BuiltInType" << st
 			
 BuiltInType: BOOL													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Bool);   }
 			| SHORT													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Short);   }
-			| INT													{  std::cout << "BuiltInType -> INT" << std::endl; $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Int);   }
+			| INT													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Int);   }
 			| LONG													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Long);   }
 			| CHAR													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Char);   }
 			| FLOAT													{  $$ = new AST::BuiltInType(AST::BuiltInType::TypeID::_Float);   }
@@ -300,7 +300,7 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$
 			| SIZEOF LPAREN IDENTIFIER RPAREN						{  $$ = new AST::SizeOf(*$3);   }
 			| SIZEOF LPAREN Expr RPAREN								{  $$ = new AST::SizeOf($3);   }
 			| SIZEOF LPAREN VarType RPAREN							{  $$ = new AST::SizeOf($3);   }
-			| IDENTIFIER LPAREN ExprList RPAREN						{  std::cout << "Expr -> IDENTIFIER LPAREN ExprList RPAREN" << std::endl; $$ = new AST::FunctionCall(*$1,$3);   }
+			| IDENTIFIER LPAREN ExprList RPAREN						{  $$ = new AST::FunctionCall(*$1,$3);   }
 			| Expr DOT IDENTIFIER									{  $$ = new AST::StructReference($1,*$3);   }
 			| Expr ARW IDENTIFIER									{  $$ = new AST::StructDereference($1,*$3);   }
 			| ADD Expr	%prec NOT									{  $$ = new AST::UnaryPlus($2);   }
@@ -346,22 +346,22 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW					{  $$ = new AST::Subscript($1,$
 			| Expr BOREQ Expr										{  $$ = new AST::BitwiseORAssign($1,$3);   }
 			| LPAREN Expr RPAREN									{  $$ = $2;   }
 			| IDENTIFIER											{  $$ = new AST::Variable(*$1);   } 
-			| Constant												{  std::cout << "Expr -> Constant" << std::endl; $$ = $1;   }												
-			| Expr COMMA Expr										{  std::cout << "Expr -> Expr COMMA Expr" << std::endl; $$ = new AST::CommaExpr($1, $3);   }
+			| Constant												{  $$ = $1;   }												
+			| Expr COMMA Expr										{  $$ = new AST::CommaExpr($1, $3);   }
 			;
 
-ExprList:	_ExprList COMMA Expr									{  std::cout << "ExprList -> _ExprList COMMA Expr" << std::endl; $$ = $1; $$->push_back($3);   }
-			| Expr %prec FUNC_CALL_ARG_LIST							{  std::cout << "ExprList -> Expr" << std::endl; $$ = new AST::ExprList(); $$->push_back($1);   }
-			|														{  std::cout << "ExprList -> e" << std::endl; $$ = new AST::ExprList();   }
+ExprList:	_ExprList COMMA Expr									{  $$ = $1; $$->push_back($3);   }
+			| Expr %prec FUNC_CALL_ARG_LIST							{  $$ = new AST::ExprList(); $$->push_back($1);   }
+			|														{  $$ = new AST::ExprList();   }
 			;
 
-_ExprList:	_ExprList COMMA Expr 									{  std::cout << "_ExprList -> _ExprList COMMA Expr" << std::endl; $$ = $1; $$->push_back($3);   }
-			| Expr %prec FUNC_CALL_ARG_LIST							{  std::cout << "_ExprList -> Expr" << std::endl; $$ = new AST::ExprList(); $$->push_back($1);   }
+_ExprList:	_ExprList COMMA Expr 									{  $$ = $1; $$->push_back($3);   }
+			| Expr %prec FUNC_CALL_ARG_LIST							{  $$ = new AST::ExprList(); $$->push_back($1);   }
 			;
 
 Constant:	TRUE													{  $$ =  new AST::Constant(true);   }
 			| FALSE													{  $$ =  new AST::Constant(false);   }
-			| CHARACTER												{  std::cout << "Constant -> CHARACTER" << std::endl; $$ =  new AST::Constant($1);   }
+			| CHARACTER												{  $$ =  new AST::Constant($1);   }
 			| INTEGER 												{  $$ =  new AST::Constant($1);   }
 			| REAL													{  $$ =  new AST::Constant($1);   }
 			| STRING												{  $$ =  new AST::GlobalString(*$1);   }

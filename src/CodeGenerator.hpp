@@ -8,6 +8,7 @@
 
 #pragma once
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <map>
 #include <stack>
@@ -246,12 +247,19 @@ public:
 		this->PopTypedefTable();
 		delete this->GlobalVarTable;
 		this->GlobalVarTable = NULL;
+	}
 
-		//Print result
-		std::cout << "********************  Module  ********************" << std::endl;
-		this->Module->print(llvm::errs(), NULL);
-		std::cout << "*****************  Verification  *****************" << std::endl;
-		if(llvm::verifyModule(*this->Module, &llvm::outs()) == 0)
-			std::cout << "No errors." << std::endl;
+	void DumpIRCode(std::string FileName) {
+		std::error_code EC;
+		llvm::raw_fd_ostream Out(FileName, EC);
+		Out << "********************  IRCode  ********************\n";
+		this->Module->print(Out, NULL);
+		Out << "*****************  Verification  *****************\n";
+		if (llvm::verifyModule(*this->Module, &Out) == 0)
+			Out << "No errors.\n";
+	}
+
+	void GenExecutable(std::string FileName) {
+		return;
 	}
 };
