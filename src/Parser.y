@@ -166,7 +166,7 @@ _VarList:	_VarList COMMA VarInit									{  std::cout << "VarList -> _VarList CO
 			;
 
 VarInit:	IDENTIFIER												{  std::cout << "VarInit -> IDENTIFIER" << std::endl; $$ = new AST::VarInit(*$1);   }
-			| IDENTIFIER ASSIGN Constant								{  std::cout << "VarInit -> IDENTIFIER ASSIGN Expr" << std::endl; $$ = new AST::VarInit(*$1,$3);   }
+			| IDENTIFIER ASSIGN Constant							{  std::cout << "VarInit -> IDENTIFIER ASSIGN Expr" << std::endl; $$ = new AST::VarInit(*$1,$3);   }
 			| IDENTIFIER ASSIGN Expr								{  std::cout << "VarInit -> IDENTIFIER ASSIGN Expr" << std::endl; $$ = new AST::VarInit(*$1,$3);   }
 			;
 
