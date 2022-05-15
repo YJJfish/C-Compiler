@@ -13,15 +13,17 @@ int main(int argc, const char* argv[]) {
 		std::cout << "[" << argv[0] << "] Usage:" << std::endl;
 		std::cout << "\t-i: Specify input file (source code). REQUIRED" << std::endl;
 		std::cout << "\t-o: Specify output file (executable). DEFAULT: a.out(Linux) or a.exe(Windows)" << std::endl;
-		std::cout << "\t-l: Specify where to dump llvm IR code. Use \" -l - \" to print IR code to the console. DEFAULT: NONE" << std::endl;
-		std::cout << "\t-v: Specify where to dump visualization file. DEFAULT: NONE" << std::endl;
+		std::cout << "\t-l: Specify where to dump llvm IR code. If \"-l\" is used but no file is specified, IR code will be printed to the console." << std::endl;
+		std::cout << "\t-v: Specify where to dump visualization file." << std::endl;
+		std::cout << "\t-O: Specify the level of optimization. Supported: -O0, -O1, -O2, -O3, -Oz, -Os." << std::endl;
 		return 1;
 	}
 	//Parse arguments
-	std::string InputFile;			//-i
-	std::string OutputExecutable;	//-o
-	std::string LLVMIRCodeFile;		//-l
-	std::string VisualizationFile;	//-v
+	std::string InputFile;							//-i
+	std::string OutputExecutable;					//-o
+	std::string LLVMIRCodeFile;	bool GenIR;			//-l
+	std::string VisualizationFile; bool GenVis;		//-v
+	std::string OptimizeLevel;						//-O
 	ArgsParser ArgParser(argc, argv);
 	//Get input file
 	if (!ArgParser.TryGetArgment("i", InputFile)) {
@@ -36,7 +38,7 @@ int main(int argc, const char* argv[]) {
 	}
 	freopen(InputFile.c_str(), "r", stdin);
 	//Get output file
-	if (!ArgParser.TryGetArgment("o", OutputExecutable))
+	if (!ArgParser.TryGetArgment("o", OutputExecutable) || OutputExecutable == "") {
 #if defined(_WIN32) || defined(_WIN64)
 		//Windows platform
 		OutputExecutable = "a.exe";
@@ -44,30 +46,54 @@ int main(int argc, const char* argv[]) {
 		//Unix platform
 		OutputExecutable = "a.out";
 #endif
+	}
+#if defined(_WIN32) || defined(_WIN64)
+	else if (OutputExecutable.length() <= 4 || OutputExecutable.substr(OutputExecutable.length() - 4) != ".exe") {
+		OutputExecutable = OutputExecutable + ".exe";
+	}
+#endif
 	//Get IRCode file
-	if (!ArgParser.TryGetArgment("l", LLVMIRCodeFile))
-		LLVMIRCodeFile = "";
+	GenIR = ArgParser.TryGetArgment("l", LLVMIRCodeFile);
 	//Get visualization file
-	if (!ArgParser.TryGetArgment("v", VisualizationFile))
-		VisualizationFile = "";
+	GenVis = ArgParser.TryGetArgment("v", VisualizationFile);
+	//Get optimization option
+	if (ArgParser.TryGetArgment("O0", OptimizeLevel))
+		OptimizeLevel = "O0";
+	else if (ArgParser.TryGetArgment("O1", OptimizeLevel))
+		OptimizeLevel = "O1";
+	else if (ArgParser.TryGetArgment("O2", OptimizeLevel))
+		OptimizeLevel = "O2";
+	else if (ArgParser.TryGetArgment("O3", OptimizeLevel))
+		OptimizeLevel = "O3";
+	else if (ArgParser.TryGetArgment("Os", OptimizeLevel))
+		OptimizeLevel = "Os";
+	else if (ArgParser.TryGetArgment("Oz", OptimizeLevel))
+		OptimizeLevel = "Oz";
+	else OptimizeLevel = "";
 	//Start parsing input
 	yyparse();
 	//Generating code
 	CodeGenerator Gen;
 	try {
-		Gen.GenerateCode(*Root);
+		Gen.GenerateCode(*Root, OptimizeLevel);
 	}
 	catch (std::exception& e) {
+#if defined(_WIN32) || defined(_WIN64)
+		//Windows platform
+		std::cout << e.what() << std::endl;
+#elif defined(__unix__)
+		//Unix platform
 		std::cout << "\033[31m" << e.what() << std::endl;
+#endif
 		return 1;
 	}
 	//Generate executable
 	Gen.GenExecutable(OutputExecutable);
 	//Dump IR code
-	if (LLVMIRCodeFile != "")
+	if (GenIR)
 		Gen.DumpIRCode(LLVMIRCodeFile);
 	//Visualization
-	if (VisualizationFile != "") {
+	if (GenVis) {
 		//To be implemented
 	}
 }

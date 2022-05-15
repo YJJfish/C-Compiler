@@ -58,7 +58,7 @@ AST::Program *Root;
     AST::EnmList *enmList;
 }
 
-%token  COMMA DOT SQUOTE DQUOTE SEMI QUES COLON
+%token  COMMA ELLIPSES DOT SQUOTE DQUOTE SEMI QUES COLON
 		LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
 		SHLEQ SHL SHREQ SHR
 		EQ GE GT LE LT NEQ NOT ASSIGN
@@ -166,7 +166,6 @@ _VarList:	_VarList COMMA VarInit									{  $$ = $1; $$->push_back($3);   }
 			;
 
 VarInit:	IDENTIFIER												{  $$ = new AST::VarInit(*$1);   }
-			| IDENTIFIER ASSIGN Constant							{  $$ = new AST::VarInit(*$1,$3);   }
 			| IDENTIFIER ASSIGN Expr								{  $$ = new AST::VarInit(*$1,$3);   }
 			;
 
@@ -212,12 +211,12 @@ _MemList:	_MemList COMMA IDENTIFIER								{  $$ = $1; $$->push_back(*$3);   }
 			| IDENTIFIER											{  $$ = new AST::MemList(); $$->push_back(*$1);   }
 			;
 
-EnmList:	_EnmList COMMA Enm										{  $$ = $1; $$->push_back($3);   }	
+EnmList:	_EnmList COMMA Enm										{  $$ = $1; $$->push_back($3);   }
 			| Enm													{  $$ = new AST::EnmList(); $$->push_back($1);   }
 			|														{  $$ = new AST::EnmList();   }		
 			;
 
-_EnmList:	_EnmList COMMA Enm										{  $$ = $1; $$->push_back($3);   }	
+_EnmList:	_EnmList COMMA Enm										{  $$ = $1; $$->push_back($3);   }
 			| Enm													{  $$ = new AST::EnmList(); $$->push_back($1);   }
 			;
 
@@ -225,8 +224,10 @@ Enm:		IDENTIFIER												{  $$ = new AST::Enm(*$1);   }
 			| IDENTIFIER ASSIGN INTEGER								{  $$ = new AST::Enm(*$1,true,$3);   };
 			;
 
-ArgList:	_ArgList COMMA Arg										{  $$ = $1; $$->push_back($3);   }	 
+ArgList:	_ArgList COMMA Arg										{  $$ = $1; $$->push_back($3);   }
+			| _ArgList COMMA ELLIPSES								{  $$ = $1; $$->SetVarArg();   }
 			| Arg													{  $$ = new AST::ArgList(); $$->push_back($1);   }
+			| ELLIPSES												{  $$ = new AST::ArgList(); $$->SetVarArg();   }
 			|														{  $$ = new AST::ArgList();   }
 			;
 

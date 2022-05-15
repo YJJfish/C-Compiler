@@ -19,7 +19,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/CallingConv.h>
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/IR/IRBuilder.h>
@@ -39,6 +39,12 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/DynamicLibrary.h>
 #include <llvm/Target/TargetMachine.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Passes/PassBuilder.h>
+#include <llvm/Passes/PassPlugin.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Scalar/GVN.h>
 
 
 #include "AST.hpp"
@@ -56,13 +62,14 @@ extern llvm::IRBuilder<> IRBuilder;
 //we need to implement it manually.
 using TypedefTable = std::map<std::string, llvm::Type*>;
 
-//VariableTable class
-//Since LLVM doesn't support visiting all alloca instances explicitly,
-//we need to implement it manually.
-using VariableTable = std::map<std::string, llvm::AllocaInst*>;
+//Since llvm's structs' members don't have names, we need to implement it manually.
+//Our solution is creating a mapping from llvm::StructType* to AST::StructType*
+using IdentifiedStructTypeTable = std::map<llvm::StructType*, AST::StructType*>;
 
-//Similar to VariableTable, but for llvm::GlobalVariable*
-using GlobalVariableTable = std::map<std::string, llvm::GlobalVariable*>;
+//VariableTable class
+//Since LLVM doesn't support visiting all variables explicitly,
+//we need to implement it manually.
+using VariableTable = std::map<std::string, llvm::Value*>;
 
 //CodeGenerator class
 class CodeGenerator {
@@ -70,25 +77,26 @@ public:
 	llvm::Module* Module;
 	llvm::DataLayout* DL;
 private:
-	std::vector<llvm::Function*> FuncStack;				//Global function symbol table
+	llvm::Function* CurrFunction;						//Current function
+	IdentifiedStructTypeTable* StructTypeTable;			//Struct type table
 	std::vector<TypedefTable*> TypedefStack;			//Typedef symbol table
 	std::vector<VariableTable*> VariableStack;			//Local variable symbol table
 	std::vector<llvm::BasicBlock*> ContinueBlockStack;	//Store blocks for "continue" statement
 	std::vector<llvm::BasicBlock*> BreakBlockStack;		//Store blocks for "break" statement
-	GlobalVariableTable* GlobalVarTable;
-	unsigned int AddrSpace;
+	llvm::BasicBlock* TmpBB;							//Temp block for global instruction code generation
+	llvm::Function* TmpFunc;							//Temp function for global instruction code generation
 public:
 	//Constructor
 	CodeGenerator(void) :
 		Module(new llvm::Module("main", Context)),
 		DL(new llvm::DataLayout(Module)),
-		FuncStack(),
+		CurrFunction(NULL),
+		StructTypeTable(NULL),
 		TypedefStack(),
 		VariableStack(),
 		ContinueBlockStack(),
 		BreakBlockStack(),
-		GlobalVarTable(NULL),
-		AddrSpace(this->Module->getDataLayout().getAllocaAddrSpace())
+		TmpBB()
 	{}
 
 	//Create and push an empty TypedefTable
@@ -103,7 +111,7 @@ public:
 		this->TypedefStack.pop_back();
 	}
 
-	//Find the llvm::Type* instance for the given name
+	//Find the AST::VarType* instance for the given name
 	llvm::Type* FindType(std::string Name) {
 		for (auto TableIter = this->TypedefStack.end() - 1; TableIter >= this->TypedefStack.begin(); TableIter--) {
 			auto PairIter = (**TableIter).find(Name);
@@ -137,8 +145,8 @@ public:
 		this->VariableStack.pop_back();
 	}
 
-	//Find the llvm::AllocaInst* instance for the given name
-	llvm::AllocaInst* FindLocalVariable(std::string Name) {
+	//Find variable
+	llvm::Value* FindVariable(std::string Name) {
 		for (auto TableIter = this->VariableStack.end() - 1; TableIter >= this->VariableStack.begin(); TableIter--) {
 			auto PairIter = (**TableIter).find(Name);
 			if (PairIter != (**TableIter).end())
@@ -147,62 +155,46 @@ public:
 		return NULL;
 	}
 
-	//Find the llvm::GlobalVariable* instance for the given name
-	llvm::GlobalVariable* FindGlobalVariable(std::string Name) {
-		auto PairIter = (*this->GlobalVarTable).find(Name);
-		if (PairIter != (*this->GlobalVarTable).end())
+	//Add an item to the current variable symbol table
+	//If an old value exists (i.e., conflict), return false
+	bool AddVariable(std::string Name, llvm::Value* Variable) {
+		if (this->VariableStack.size() == 0) return false;
+		auto& TopTable = *(this->VariableStack.back());
+		auto PairIter = TopTable.find(Name);
+		if (PairIter != TopTable.end())
+			return false;
+		TopTable[Name] = Variable;
+		return true;
+	}
+
+	AST::StructType* FindStructType(llvm::StructType* Ty1) {
+		auto PairIter = this->StructTypeTable->find(Ty1);
+		if (PairIter != this->StructTypeTable->end())
 			return PairIter->second;
 		return NULL;
 	}
 
-	//A combination of FindLocalVariable and FindGlobalVariable
-	llvm::Value* FindVariable(std::string Name) {
-		auto Ret1 = this->FindLocalVariable(Name);
-		if (Ret1) return Ret1;
-		auto Ret2 = this->FindGlobalVariable(Name);
-		return Ret2;
+	bool AddStructType(llvm::StructType* Ty1, AST::StructType* Ty2) {
+		auto PairIter = this->StructTypeTable->find(Ty1);
+		if (PairIter != this->StructTypeTable->end())
+			return false;
+		(*this->StructTypeTable)[Ty1] = Ty2;
+		return true;
 	}
 
-	//Add an item to the current variable symbol table
-	//If an old value exists (i.e., conflict), return false
-	bool AddVariable(std::string Name, llvm::Value* Variable) {
-		//If the Variable stack is empty, add this variable to the global scope.
-		//Otherwise, add this variable to the local scope.
-		if (this->VariableStack.size() == 0) {
-			auto& TopTable = *(this->GlobalVarTable);
-			auto PairIter = TopTable.find(Name);
-			if (PairIter != TopTable.end())
-				return false;
-			TopTable[Name] = (llvm::GlobalVariable*)Variable;
-			return true;
-		}
-		else {
-			auto& TopTable = *(this->VariableStack.back());
-			auto PairIter = TopTable.find(Name);
-			if (PairIter != TopTable.end())
-				return false;
-			TopTable[Name] = (llvm::AllocaInst*)Variable;
-			return true;
-		}
+	//Set current function
+	void EnterFunction(llvm::Function* Func) {
+		this->CurrFunction = Func;
 	}
 
-	//Push a new function
-	void PushFunction(llvm::Function* Func) {
-		this->FuncStack.push_back(Func);
-	}
-
-	//Remove the last function
-	void PopFunction(void) {
-		if (this->FuncStack.size() == 0) return;
-		this->FuncStack.pop_back();
+	//Remove current function
+	void LeaveFunction(void) {
+		this->CurrFunction = NULL;
 	}
 
 	//Get the current function
 	llvm::Function* GetCurrentFunction(void) {
-		if (this->FuncStack.size())
-			return this->FuncStack.back();
-		else
-			return NULL;
+		return this->CurrFunction;
 	}
 
 	//Called whenever entering a loop
@@ -234,22 +226,76 @@ public:
 			return NULL;
 	}
 
+	void XchgInsertPointWithTmpBB(void) {
+		auto Tmp = IRBuilder.GetInsertBlock();
+		IRBuilder.SetInsertPoint(this->TmpBB);
+		this->TmpBB = Tmp;
+	}
+
 	//Pass the root of the ast to this function and generate code
-	void GenerateCode(AST::Program& Root) {
+	void GenerateCode(AST::Program& Root, const std::string& OptimizeLevel = "") {
+
 		//Initialize symbol table
+		this->StructTypeTable = new IdentifiedStructTypeTable;
 		this->PushTypedefTable();
-		this->GlobalVarTable = new GlobalVariableTable;
+		this->PushVariableTable();
+
+		//Create a temp function and a temp block for global instruction code generation
+		this->TmpFunc = llvm::Function::Create(llvm::FunctionType::get(IRBuilder.getVoidTy(), false), llvm::GlobalValue::InternalLinkage, "0Tmp", this->Module);
+		this->TmpBB = llvm::BasicBlock::Create(Context, "Temp", this->TmpFunc);
 
 		//Generate code
 		Root.CodeGen(*this);
+		std::cout << "Gen Successfully" << std::endl;
+
+		//Delete TmpBB and TmpFunc
+		this->TmpBB->eraseFromParent();
+		this->TmpFunc->eraseFromParent();
 
 		//Delete symbol table
 		this->PopTypedefTable();
-		delete this->GlobalVarTable;
-		this->GlobalVarTable = NULL;
+		this->PopVariableTable();
+		delete this->StructTypeTable; this->StructTypeTable = NULL;
+
+		//Run optimization
+		if (OptimizeLevel != "") {
+			//Create the analysis managers.
+			llvm::LoopAnalysisManager LAM;
+			llvm::FunctionAnalysisManager FAM;
+			llvm::CGSCCAnalysisManager CGAM;
+			llvm::ModuleAnalysisManager MAM;
+			//Create the new pass manager builder.
+			llvm::PassBuilder PB;
+			//Register all the basic analyses with the managers.
+			PB.registerModuleAnalyses(MAM);
+			PB.registerCGSCCAnalyses(CGAM);
+			PB.registerFunctionAnalyses(FAM);
+			PB.registerLoopAnalyses(LAM);
+			PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+			//Create the pass manager.
+			const llvm::OptimizationLevel* OptLevel;
+			if (OptimizeLevel == "O0")
+				OptLevel = &llvm::OptimizationLevel::O0;
+			else if (OptimizeLevel == "O1")
+				OptLevel = &llvm::OptimizationLevel::O1;
+			else if (OptimizeLevel == "O2")
+				OptLevel = &llvm::OptimizationLevel::O2;
+			else if (OptimizeLevel == "O3")
+				OptLevel = &llvm::OptimizationLevel::O3;
+			else if (OptimizeLevel == "Os")
+				OptLevel = &llvm::OptimizationLevel::Os;
+			else if (OptimizeLevel == "Oz")
+				OptLevel = &llvm::OptimizationLevel::Oz;
+			else
+				OptLevel = &llvm::OptimizationLevel::O0;
+			llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(*OptLevel);
+			//Optimize the IR
+			MPM.run(*this->Module, MAM);
+		}
 	}
 
 	void DumpIRCode(std::string FileName) {
+		if (FileName == "") FileName = "-";
 		std::error_code EC;
 		llvm::raw_fd_ostream Out(FileName, EC);
 		Out << "********************  IRCode  ********************\n";

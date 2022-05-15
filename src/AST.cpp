@@ -48,10 +48,16 @@ namespace AST {
 		//Clear the arg list of the function only has one "void" arg.
 		if (ArgTypes.size() == 1 && ContainVoidTy)
 			ArgTypes.clear();
+		//Get return type
+		llvm::Type* RetTy = this->_RetType->GetLLVMType(__Generator);
+		if (RetTy->isArrayTy()) {
+			throw std::logic_error("Defining Function " + this->_Name + " whose return type is array type.");
+			return NULL;
+		}
 		//Get function type
-		llvm::FunctionType* FuncType = llvm::FunctionType::get(this->_RetType->GetLLVMType(__Generator), ArgTypes, false);
+		llvm::FunctionType* FuncType = llvm::FunctionType::get(RetTy, ArgTypes, this->_ArgList->_VarArg);
 		//Create function
-		llvm::Function* Func = llvm::Function::Create(FuncType, llvm::GlobalValue::InternalLinkage, this->_Name, __Generator.Module);
+		llvm::Function* Func = llvm::Function::Create(FuncType, llvm::GlobalValue::ExternalLinkage, this->_Name, __Generator.Module);
 		//If the function name conflictes, there was already something with the same name.
 		//If it already has a body, don't allow redefinition.
 		if (Func->getName() != this->_Name) {
@@ -92,19 +98,16 @@ namespace AST {
 					//Add to the symbol table
 					__Generator.AddVariable(this->_ArgList->at(Index)->_Name, Alloc);
 				}
-
 			}
 			//Generate code of the function body
-			__Generator.PushFunction(Func);
+			__Generator.EnterFunction(Func);
 			__Generator.PushTypedefTable();
 			__Generator.PushVariableTable();
 			this->_FuncBody->CodeGen(__Generator);
 			__Generator.PopVariableTable();
 			__Generator.PopTypedefTable();
-			__Generator.PopFunction();
+			__Generator.LeaveFunction();
 			__Generator.PopVariableTable();	//We need to pop out an extra variable table.
-			//We don't need to create return value explicitly,
-			//because "return" statement will be used explicitly in the function body.
 		}
 		return NULL;
 	}
@@ -120,6 +123,14 @@ namespace AST {
 				break;
 			else
 				Stmt->CodeGen(__Generator);
+		//If the function doesn't have a "return" at the end of its body, create a default one.
+		if (!IRBuilder.GetInsertBlock()->getTerminator()) {
+			llvm::Type* RetTy = __Generator.GetCurrentFunction()->getReturnType();
+			if (RetTy->isVoidTy())
+				IRBuilder.CreateRetVoid();
+			else
+				IRBuilder.CreateRet(llvm::UndefValue::get(RetTy));
+		}
 		return NULL;
 	}
 
@@ -149,15 +160,7 @@ namespace AST {
 					return NULL;
 				}
 				//Assign the initial value by "store" instruction.
-				if (NewVar->_InitialConstant) {
-					llvm::Value* Initializer = TypeCasting(NewVar->_InitialConstant->CodeGen(__Generator), VarType);
-					if (Initializer == NULL) {
-						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
-						return NULL;
-					}
-					IRBuilder.CreateStore(Initializer, Alloc);
-				}	
-				else if (NewVar->_InitialExpr) {
+				if (NewVar->_InitialExpr) {
 					llvm::Value* Initializer = TypeCasting(NewVar->_InitialExpr->CodeGen(__Generator), VarType);
 					if (Initializer == NULL) {
 						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
@@ -173,17 +176,26 @@ namespace AST {
 				//create a global variable.
 				//Create the constant initializer
 				llvm::Constant* Initializer = NULL;
-				if (NewVar->_InitialConstant) {
-					Initializer = (llvm::Constant*)TypeCasting(NewVar->_InitialConstant->CodeGen(__Generator), VarType);
-					if (Initializer == NULL) {
+				if (NewVar->_InitialExpr) {
+					//Global variable must be initialized (if any) by a constant.
+					__Generator.XchgInsertPointWithTmpBB();
+					auto TmpBBSize = IRBuilder.GetInsertBlock()->size();
+					llvm::Value* InitialExpr = TypeCasting(NewVar->_InitialExpr->CodeGen(__Generator), VarType);
+					if (IRBuilder.GetInsertBlock()->size() != TmpBBSize) {
+						throw std::logic_error("Initializing global variable " + NewVar->_Name + " with non-constant value.");
+						return NULL;
+					}
+					if (InitialExpr == NULL) {
 						throw std::logic_error("Initializing variable " + NewVar->_Name + " with value of different type.");
 						return NULL;
 					}
+					__Generator.XchgInsertPointWithTmpBB();
+					Initializer = (llvm::Constant*)InitialExpr;
 				}
-				else if (NewVar->_InitialExpr) {
-					//Global variable must be initialized (if any) by a constant.
-					throw std::logic_error("Initializing global variable " + NewVar->_Name + " with non-constant value.");
-					return NULL;
+				else {
+					//We must create an undef value manually. If no initializer is given,
+					//this global value will be recognized as "extern" by llvm.
+					Initializer = llvm::UndefValue::get(VarType);
 				}
 				//Create a global variable
 				auto Alloc = new llvm::GlobalVariable(
@@ -208,13 +220,21 @@ namespace AST {
 	llvm::Value* TypeDecl::CodeGen(CodeGenerator& __Generator) {
 		//Add an item to the current typedef symbol table
 		//If an old value exists (i.e., conflict), raise an error
-		llvm::Type* LLVMType = this->_VarType->GetLLVMType(__Generator);
+		llvm::Type* LLVMType;
+		if (this->_VarType->isStructType())
+			//For struct types, firstly we just need to get an opaque struct type
+			LLVMType = ((AST::StructType*)this->_VarType)->GenerateLLVMTypeHead(__Generator, this->_Alias);
+		else
+			LLVMType = this->_VarType->GetLLVMType(__Generator);
 		if (!LLVMType) {
 			throw std::logic_error("Typedef " + this->_Alias + " using undefined types.");
 			return NULL;
 		}
 		if (!__Generator.AddType(this->_Alias, LLVMType))
 			throw std::logic_error("Redefinition of typename " + this->_Alias);
+		//For struct types, we need to generate its body
+		if (this->_VarType->isStructType())
+			((AST::StructType*)this->_VarType)->GenerateLLVMTypeBody(__Generator);
 		return NULL;
 	}
 
@@ -240,7 +260,12 @@ namespace AST {
 	llvm::Type* DefinedType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
 			return this->_LLVMType;
-		return this->_LLVMType = __Generator.FindType(this->_Name);
+		this->_LLVMType = __Generator.FindType(this->_Name);
+		if (this->_LLVMType == NULL) {
+			throw std::logic_error("\"" + this->_Name + "\" is an undefined type.");
+			return NULL;
+		}
+		else return this->_LLVMType;
 	}
 
 	//Pointer type.
@@ -267,7 +292,19 @@ namespace AST {
 	llvm::Type* StructType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
 			return this->_LLVMType;
-		//Generate the body of the struct type
+		//Create an anonymous identified struct type
+		this->GenerateLLVMTypeHead(__Generator);
+		return this->_LLVMType = this->GenerateLLVMTypeBody(__Generator);
+	}
+	llvm::Type* StructType::GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name) {
+		//Firstly, generate an empty identified struct type
+		auto LLVMType = llvm::StructType::create(Context, __Name);
+		//Add to the struct table
+		__Generator.AddStructType(LLVMType, this);
+		return this->_LLVMType = LLVMType;
+	}
+	llvm::Type* StructType::GenerateLLVMTypeBody(CodeGenerator& __Generator) {
+		//Secondly, generate its body
 		std::vector<llvm::Type*> Members;
 		for (auto FDecl : *(this->_StructBody))
 			if (FDecl->_VarType->GetLLVMType(__Generator)->isVoidTy()) {
@@ -276,7 +313,17 @@ namespace AST {
 			}
 			else
 				Members.insert(Members.end(), FDecl->_MemList->size(), FDecl->_VarType->GetLLVMType(__Generator));
-		return this->_LLVMType = llvm::StructType::get(Context, Members);
+		((llvm::StructType*)this->_LLVMType)->setBody(Members);
+		return this->_LLVMType;
+	}
+	size_t StructType::GetElementIndex(const std::string& __MemName) {
+		size_t Index = 0;
+		for (auto FDecl : *(this->_StructBody))
+			for (auto& MemName : *(FDecl->_MemList))
+				if (MemName == __MemName)
+					return Index;
+				else Index++;
+		return -1;
 	}
 
 	//Enum type
@@ -686,8 +733,9 @@ namespace AST {
 			return NULL;
 		}
 		//Check the number of args. If Func took a different number of args, reject.
-		if (Func->arg_size() != this->_ArgList->size()) {
-			throw std::invalid_argument("#Args doesn't match when calling function " + this->_FuncName + ". Expected " + std::to_string(Func->arg_size()) + ", got " + std::to_string(this->_ArgList->size()));
+		if (Func->isVarArg() && this->_ArgList->size() < Func->arg_size() ||
+			!Func->isVarArg() && this->_ArgList->size() != Func->arg_size()) {
+			throw std::invalid_argument("Args doesn't match when calling function " + this->_FuncName + ". Expected " + std::to_string(Func->arg_size()) + ", got " + std::to_string(this->_ArgList->size()));
 			return NULL;
 		}
 		//Check arg types. If Func took different different arg types, reject.
@@ -702,6 +750,12 @@ namespace AST {
 			}
 			ArgList.push_back(Arg);
 		}
+		//Continue to push arguments if this function takes a variable number of arguments
+		if (Func->isVarArg())
+			for (; Index < this->_ArgList->size(); Index++) {
+				llvm::Value* Arg = this->_ArgList->at(Index)->CodeGen(__Generator);
+				ArgList.push_back(Arg);
+			}
 		//Create function call.
 		return IRBuilder.CreateCall(Func, ArgList);
 	}
@@ -712,18 +766,60 @@ namespace AST {
 
 	//Structure reference, e.g. a.x, a.y
 	llvm::Value* StructReference::CodeGen(CodeGenerator& __Generator) {
-		return NULL;
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* StructReference::CodeGenPtr(CodeGenerator& __Generator) {
-		return NULL;
+		llvm::Value* StructPtr = this->_Struct->CodeGenPtr(__Generator);
+		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
+			throw std::logic_error("Struct reference operator \".\" must be apply to struct pointers.");
+			return NULL;
+		}
+		//Since C language uses name instead of index to fetch the element inside a struct,
+		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		int MemIndex = StructType->GetElementIndex(this->_MemName);
+		if (MemIndex == -1) {
+			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+			return NULL;
+		}
+		std::vector<llvm::Value*> Indices;
+		Indices.push_back(IRBuilder.getInt32(0));
+		Indices.push_back(IRBuilder.getInt32(MemIndex));
+		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 	}
 
 	//Structure dereference, e.g. a->x, a->y
 	llvm::Value* StructDereference::CodeGen(CodeGenerator& __Generator) {
-		return NULL;
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
 	}
 	llvm::Value* StructDereference::CodeGenPtr(CodeGenerator& __Generator) {
-		return NULL;
+		llvm::Value* StructPtr = this->_StructPtr->CodeGen(__Generator);
+		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
+			throw std::logic_error("Struct dereference operator \"->\" must be apply to struct pointers.");
+			return NULL;
+		}
+		//Since C language uses name instead of index to fetch the element inside a struct,
+		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		int MemIndex = StructType->GetElementIndex(this->_MemName);
+		if (MemIndex == -1) {
+			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+			return NULL;
+		}
+		std::vector<llvm::Value*> Indices;
+		Indices.push_back(IRBuilder.getInt32(0));
+		Indices.push_back(IRBuilder.getInt32(MemIndex));
+		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 	}
 
 	//Unary plus, e.g. +i, +j, +123

@@ -54,7 +54,7 @@ namespace AST {
 	using Decls = std::vector<Decl*>;
 		class FuncDecl;
 			class Arg;
-			using ArgList = std::vector<Arg*>;
+			class ArgList;
 			class FuncBody;
 		class VarDecl;
 			class VarInit;
@@ -233,16 +233,12 @@ namespace AST {
 		//The name of the variable
 		std::string _Name;
 		//The initial value (if any) of this variable
-		//At most one of them can be not NULL.
 		Expr* _InitialExpr;
-		Constant* _InitialConstant;
 
 		VarInit(const std::string& __Name) :
-			_Name(__Name), _InitialExpr(NULL), _InitialConstant(NULL) {}
+			_Name(__Name), _InitialExpr(NULL) {}
 		VarInit(const std::string& __Name, Expr* __InitialExpr) :
-			_Name(__Name), _InitialExpr(__InitialExpr), _InitialConstant(NULL) {}
-		VarInit(const std::string& __Name, Constant* __InitialConstant) :
-			_Name(__Name), _InitialExpr(NULL), _InitialConstant(__InitialConstant) {}
+			_Name(__Name), _InitialExpr(__InitialExpr) {}
 		~VarInit(void) {}
 		//VarInit class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
@@ -281,6 +277,13 @@ namespace AST {
 		virtual llvm::Type* GetLLVMType(CodeGenerator& __Generator) = 0;
 		//VarType class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		//Determine class type
+		virtual bool isBuiltInType(void) = 0;
+		virtual bool isDefinedType(void) = 0;
+		virtual bool isPointerType(void) = 0;
+		virtual bool isArrayType(void) = 0;
+		virtual bool isStructType(void) = 0;
+		virtual bool isEnumType(void) = 0;
 	};
 
 	//Built-in type
@@ -305,6 +308,13 @@ namespace AST {
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return true; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return false; }
+		bool isEnumType(void) { return false; }
 	};
 
 	//Defined type. Use this class when only an identifier is given.
@@ -318,6 +328,13 @@ namespace AST {
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return true; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return false; }
+		bool isEnumType(void) { return false; }
 	};
 
 	//Pointer type.
@@ -332,6 +349,13 @@ namespace AST {
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return true; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return false; }
+		bool isEnumType(void) { return false; }
 	};
 
 	//Array Type
@@ -348,6 +372,13 @@ namespace AST {
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return true; }
+		bool isStructType(void) { return false; }
+		bool isEnumType(void) { return false; }
 	};
 
 	//Struct Type
@@ -358,9 +389,22 @@ namespace AST {
 
 		StructType(FieldDecls* __StructBody) : _StructBody(__StructBody) {}
 		~StructType(void) {}
-		//Return the corresponding instance of llvm::Type*.
-		//Meanwhile, it will update _LLVMType.
+		//This is only called if the struct type is an anonymous one,
+		//or its LLVM type is already generated.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Return the corresponding instance of llvm::Type*, as an identified struct type
+		//Meanwhile, it will update _LLVMType.
+		llvm::Type* GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name = "<unnamed>");
+		llvm::Type* GenerateLLVMTypeBody(CodeGenerator& __Generator);
+		//Get the element index according to its name
+		size_t GetElementIndex(const std::string& __MemName);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return true; }
+		bool isEnumType(void) { return false; }
 	};
 
 	//Field declaration for struct type
@@ -388,6 +432,13 @@ namespace AST {
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
 		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return false; }
+		bool isEnumType(void) { return true; }
 	};
 
 	//A single enum member
@@ -403,6 +454,19 @@ namespace AST {
 			_Name(__Name), _hasValue(__hasValue), _Value(__Value) {}
 		~Enm(void) {}
 		//Enm class don't need an actual CodeGen function
+		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+	};
+
+	//Function argument list
+	class ArgList : public std::vector<Arg*>, public Node {
+	public:
+		//Set true if the argument list contains "..."
+		bool _VarArg;
+		void SetVarArg(void) { this->_VarArg = true; }
+
+		ArgList(void) : _VarArg(false) {}
+		~ArgList(void) {}
+		//ArgList class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
 	};
 

@@ -24,9 +24,12 @@ class ArgsParser{
 		for (int i = 0; i < args.size(); i++){
 			if (args[i][0] == '-'){
 				std::string name(&args[i][1]);
-				if (i + 1 < args.size()){
+				if (i + 1 < args.size() && args[i + 1][0] != '-') {
 					argMap[name] = args[i + 1];
 					i++;
+				}
+				else {
+					argMap[name] = "";
 				}
 			}
 		}

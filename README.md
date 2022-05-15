@@ -8,7 +8,7 @@ This project implements a compiler that can compile a C-like language into binar
 
     The lexer and parser of this project are implemented using flex and bison, respectively.
 
-2. LLVM
+2. LLVM-14
 
     The code generation of this project is implemented using the C++ API of LLVM (version 14).
 
@@ -218,6 +218,7 @@ In conclusion, The grammar of our language is:
 
   ```
   COMMA			","
+  ELLIPSES		"..."
   DOT				"."
   SQUOTE			"\'"
   DQUOTE			"\""
@@ -348,7 +349,11 @@ In conclusion, The grammar of our language is:
   Enm ->			IDENTIFIER |
   				IDENTIFIER ASSIGN INTEGER
   
-  ArgList ->		_ArgList COMMA Arg | Arg | ε
+  ArgList ->		_ArgList COMMA Arg |
+  				_ArgList COMMA ELLIPSES |
+  				Arg |
+  				ELLIPSES |
+  				ε
   
   _ArgList ->		_ArgList COMMA Arg | Arg
   
