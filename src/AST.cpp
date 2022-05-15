@@ -729,7 +729,7 @@ namespace AST {
 		//Get the function. Throw exception if the function doesn't exist.
 		llvm::Function* Func = __Generator.Module->getFunction(this->_FuncName);
 		if (Func == NULL) {
-			throw std::domain_error(this->_FuncName + "is not a defined function.");
+			throw std::domain_error(this->_FuncName + " is not a defined function.");
 			return NULL;
 		}
 		//Check the number of args. If Func took a different number of args, reject.
@@ -751,9 +751,14 @@ namespace AST {
 			ArgList.push_back(Arg);
 		}
 		//Continue to push arguments if this function takes a variable number of arguments
+		//According to the C standard, bool/char/short should be extended to int, and float should be extended to double
 		if (Func->isVarArg())
 			for (; Index < this->_ArgList->size(); Index++) {
 				llvm::Value* Arg = this->_ArgList->at(Index)->CodeGen(__Generator);
+				if (Arg->getType()->isIntegerTy())
+					Arg = TypeUpgrading(Arg, IRBuilder.getInt32Ty());
+				else if (Arg->getType()->isFloatingPointTy())
+					Arg = TypeUpgrading(Arg, IRBuilder.getDoubleTy());
 				ArgList.push_back(Arg);
 			}
 		//Create function call.
@@ -997,7 +1002,7 @@ namespace AST {
 
 	//Logic NOT, e.g. !x
 	llvm::Value* LogicNot::CodeGen(CodeGenerator& __Generator) {
-		return IRBuilder.CreateNeg(Cast2I1(this->_Operand->CodeGen(__Generator)));
+		return IRBuilder.CreateICmpEQ(Cast2I1(this->_Operand->CodeGen(__Generator)), IRBuilder.getInt1(false));
 	}
 	llvm::Value* LogicNot::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Logic NOT operator \"!\" only returns right-values.");
@@ -1113,6 +1118,18 @@ namespace AST {
 				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
+		else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+			return IRBuilder.CreateICmpUGT(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+			return IRBuilder.CreateICmpUGT(
+				TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+			);
+		}
 		throw std::domain_error("Comparison \">\" using unsupported type combination.");
 	}
 	llvm::Value* LogicGT::CodeGenPtr(CodeGenerator& __Generator) {
@@ -1135,6 +1152,18 @@ namespace AST {
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
 			return IRBuilder.CreateICmpUGE(
 				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+			return IRBuilder.CreateICmpUGE(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+			return IRBuilder.CreateICmpUGE(
+				TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
 				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
@@ -1163,6 +1192,18 @@ namespace AST {
 				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
+		else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+			return IRBuilder.CreateICmpULT(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+			return IRBuilder.CreateICmpULT(
+				TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+			);
+		}
 		throw std::domain_error("Comparison \"<\" using unsupported type combination.");
 	}
 	llvm::Value* LogicLT::CodeGenPtr(CodeGenerator& __Generator) {
@@ -1185,6 +1226,18 @@ namespace AST {
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
 			return IRBuilder.CreateICmpULE(
 				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+			return IRBuilder.CreateICmpULE(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+			return IRBuilder.CreateICmpULE(
+				TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
 				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}
@@ -1221,6 +1274,18 @@ namespace AST {
 		if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType()) {
 			return IRBuilder.CreateICmpNE(
 				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+			return IRBuilder.CreateICmpNE(
+				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+				TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+			);
+		}
+		else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+			return IRBuilder.CreateICmpNE(
+				TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
 				IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 			);
 		}

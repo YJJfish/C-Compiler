@@ -39,12 +39,17 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/DynamicLibrary.h>
 #include <llvm/Target/TargetMachine.h>
-#include <llvm/Support/TargetSelect.h>
 #include <llvm/Passes/PassBuilder.h>
 #include <llvm/Passes/PassPlugin.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Host.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 
 
 #include "AST.hpp"
@@ -306,6 +311,38 @@ public:
 	}
 
 	void GenExecutable(std::string FileName) {
-		return;
+		auto TargetTriple = llvm::sys::getDefaultTargetTriple();
+		llvm::InitializeAllTargetInfos();
+		llvm::InitializeAllTargets();
+		llvm::InitializeAllTargetMCs();
+		llvm::InitializeAllAsmParsers();
+		llvm::InitializeAllAsmPrinters();
+		std::string Error;
+		auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
+		if (!Target) {
+			throw std::runtime_error(Error);
+			return;
+		}
+		auto CPU = "generic";
+		auto Features = "";
+		llvm::TargetOptions opt;
+		auto RM = llvm::Optional<llvm::Reloc::Model>();
+		auto TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+		Module->setDataLayout(TargetMachine->createDataLayout());
+		Module->setTargetTriple(TargetTriple);
+		std::error_code EC;
+		llvm::raw_fd_ostream Dest(FileName, EC, llvm::sys::fs::OF_None);
+		if (EC) {
+			throw std::runtime_error("Could not open file: " + EC.message());
+			return;
+		}
+		auto FileType = llvm::CGFT_ObjectFile;
+		llvm::legacy::PassManager PM;
+		if (TargetMachine->addPassesToEmitFile(PM, Dest, nullptr, FileType)) {
+			throw std::runtime_error("TargetMachine can't emit a file of this type");
+			return;
+		}
+		PM.run(*Module);
+		Dest.flush();
 	}
 };

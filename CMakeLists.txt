@@ -48,6 +48,12 @@ add_executable(${project_name} ${SOURCES})
 # Link
 ###############################################
 
-llvm_map_components_to_libnames(llvm_libs support core irreader executionEngine interpreter nativecodegen mcjit passes)
+#llvm_map_components_to_libnames(llvm_libs support core irreader executionEngine interpreter nativecodegen mcjit passes)
+execute_process(WORKING_DIRECTORY E:/llvm/build/Release/bin
+				COMMAND llvm-config --libs all
+				OUTPUT_VARIABLE llvm_libs)
+string(STRIP ${llvm_libs} llvm_libs)
+string(REPLACE " " ";" llvm_libs ${llvm_libs})
+MESSAGE(STATUS ${llvm_libs})
 
 target_link_libraries(${project_name} ${llvm_libs})

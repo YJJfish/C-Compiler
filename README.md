@@ -82,7 +82,18 @@ This project implements a compiler that can compile a C-like language into binar
 
 Due to the complexity of C language, to simplify our project task, we design a C-like language which, to some extent, is the subset of the original C language by introducing several restrictions:
 
-1. No macros (Commands including `#include`, `#define` and other macros are not allowed. Functions like `printf` and `scanf` should be directly used without `#include <stdio.h>`).
+1. No macros. Commands including `#include`, `#define` and other macros are not allowed. Functions like `printf` and `scanf` should be declared and then directly used without `#include <stdio.h>`.
+
+    For example:
+
+    ```C
+    /*This is an example that prints "Hello World!"*/
+    int printf(char ptr, ...);
+    int main(void){
+    	printf("Hello World!\n");
+    	return 0;
+    }
+    ```
 
 2. All codes should be placed in one single source file. (Since we don't allow any macro including `#include`)
 
@@ -97,8 +108,8 @@ Due to the complexity of C language, to simplify our project task, we design a C
     So, in our language, pointer types should be declared this way:
 
     ```C
-    //In C language, the type of p is "int*", the type of q is "int"
-    int * p, q;		//Illegal in our language.
+    //In C language, the type of both p and q is "int ptr"
+    int * p, * q;	//Illegal in our language.
     
     //In our language, the type of both p and q is "int ptr"
     int ptr p, q;	//Legal.
@@ -119,7 +130,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     float a;		//"a" is a variable of type "float"
     a;				//OK. This is an empty declaration equivalent to "int;"
     ```
-    
+
 5. The array definition in C is very complicated. For example, to define an array of integer pointers and an integer array pointer, we should write:
 
     ```C
@@ -164,6 +175,8 @@ Due to the complexity of C language, to simplify our project task, we design a C
     struct {int x, y;} p = {1, 2};				//Illegal
     ```
 
+    If you want to initialize variables of complex types like arrays, please use loop statements.
+
 7. In our language, expressions are a special type of statements. Not all statements have return values, but expressions must have return values (including `void` value).
 
     Variable declarations, function declarations are statements, but not expressions. This means they do not have return values, and should not exist in places where expressions are expected.
@@ -181,16 +194,48 @@ Due to the complexity of C language, to simplify our project task, we design a C
     
     int i; for (i = 0; foo1(i); foo2(i)) foo3(i);	//Legal
     
-    for (int i = 0; int j = i; i++);		//"int j = i" is illegal
+    for (int i = 0; int j = i; i++);		//"int j = i" is illegal, because it is not an expression
     
-    for (int i = 0; i < n; int j = i++);	//"int j = i++" is illegal
+    for (int i = 0; i < n; int j = i++);	//"int j = i++" is illegal, because it is not an expression
     
     for (int i = 0; i < n; i++){			//Legal
-        int i = 10;	//We allow redefining variables in the loop body
+        int i = 10;	//Legal. We allow redefining variables in the loop body
     };
     ```
 
-8. Array types in C are very complex and confusing. Let's look at the following two examples:
+8. Like C, We adopt name equivalence for variable types. The following code won't be compiled because the two `struct{int x, y;}` types are not equivalence:
+
+    ```C
+    struct {int x, y;} test(void){
+    	struct {int x, y;} a;
+    	struct {int x, y;} b;
+    	a = b;		//Error
+    	return a;	//Error
+    }
+    ```
+
+    To correct this piece of code, you should use `typedef` to declare a structure type at first:
+
+    ```C
+    typedef struct {int x, y;} PointTy;
+    PointTy test(void){
+    	PointTy a;
+    	PointTy b;
+    	a = b;		//OK
+    	return a;	//OK
+    }
+    ```
+
+    Recursive structure types must be declared using `typedef`:
+
+    ```C
+    typedef struct {
+    	int Value;
+    	Node ptr Next;
+    } Node;
+    ```
+
+9. Array types in C are very complex and confusing. Let's look at the following two examples:
 
     ```C
     void foo1(void) {
@@ -210,7 +255,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
     Although `a` is an array in both functions, the IR codes totally different. In the first example, `a` is a locally defined array. Therefore, the type of `a` is an array type. In the second example, `a` is a parameter. Therefore, the type of `a` is `int*` according to the C standard.
 
-    In our language, to simplify this problem and comply with the C standard simultaneously, when `a` is passed as an parameter, instead of treating it as a `int*` pointer, we will treat it as an array as if it is defined locally. However, modifying `a[0]` won't result in the modification of the local stack, but rather the modification of the passed array (This complies with the C standard).
+    In our language, to simplify this problem and comply with the C standard simultaneously, when `a` whose type is `int array(n)` is passed as an parameter, instead of treating it as a `int*` pointer, we will treat it as `int array(n) ptr`. This way, it will be treated as an array as if it is defined locally, except that modifying `a[0]` won't result in the modification of the local stack, but rather the modification of the passed array (This complies with the C standard).
 
 In conclusion, The grammar of our language is:
 
@@ -220,8 +265,6 @@ In conclusion, The grammar of our language is:
   COMMA			","
   ELLIPSES		"..."
   DOT				"."
-  SQUOTE			"\'"
-  DQUOTE			"\""
   SEMI			";"
   LPAREN			"("
   RPAREN			")"
@@ -291,7 +334,10 @@ In conclusion, The grammar of our language is:
   FLOAT			"float"
   DOUBLE			"double"
   VOID			"void"
-  CHARACTER		"\'"."\'"
+  CHARACTER		"\'\\"."\'" | "\'"[^\\']"\'"
+  SQUOTE			"\'"
+  STRING			"\""(\\.|[^"\\])*"\""
+  DQUOTE			"\""
   IDENTIFIER		[a-zA-Z_][a-zA-Z0-9_]*
   REAL			[0-9]+\.[0-9]+
   INTERGER		[0-9]+
@@ -391,7 +437,8 @@ In conclusion, The grammar of our language is:
   
   CaseList ->		CaseList CaseStmt | ε
   
-  CaseStmt ->		CASE Expr COLON Stmts | DEFAULT COLON Stmts
+  CaseStmt ->		CASE Expr COLON Stmts |
+  				DEFAULT COLON Stmts
   
   ContinueStmt ->	CONTINUE SEMI
   
@@ -463,4 +510,28 @@ In conclusion, The grammar of our language is:
   				STRING
   ```
   
-  
+
+## Usage
+
+`-i`: Specify input file (source code). REQUIRED.
+`-o`: Specify output file (target code). DEFAULT: `a.o`.
+`-l`: Specify where to dump llvm IR code. If \"`-l`\" is used but no file is specified, IR code will be printed to the console.
+`-v`: Specify where to dump visualization file.
+`-O`: Specify the level of optimization. Supported: `-O0`, `-O1`, `-O2`, `-O3`, `-Oz`, `-Os`.
+
+For example, if you have successfully compiled our code and get an executable whose name is `C-Compiler` or `C-Compiler.exe`. In the same directory, there is a test code whose name is `Test.c`. Execute the following command:
+
+`./C-Compiler -i ./Test.c -o Test.o -O3 -l`
+
+After compiling `Test.c` with optimization level `O3` successfully, the IR code will be printed to the console, and the binary code will be written to `Test.o`.
+
+To run the target code on your machine, you can use any linker to transform `Test.o` into an executable. For example:
+
+`gcc ./Test.o`
+
+`./a.exe`(Windows) or `./a.out`(Linux)
+
+## Test Samples
+
+We provide many test samples, from simple ones like `HelloWorld.c` to complex ones like `B+Tree.c`. All codes are placed in `./C-Compiler/test/`.
+

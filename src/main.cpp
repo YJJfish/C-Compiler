@@ -12,7 +12,7 @@ int main(int argc, const char* argv[]) {
 	if (argc == 1) {
 		std::cout << "[" << argv[0] << "] Usage:" << std::endl;
 		std::cout << "\t-i: Specify input file (source code). REQUIRED" << std::endl;
-		std::cout << "\t-o: Specify output file (executable). DEFAULT: a.out(Linux) or a.exe(Windows)" << std::endl;
+		std::cout << "\t-o: Specify output file (target code). DEFAULT: a.o" << std::endl;
 		std::cout << "\t-l: Specify where to dump llvm IR code. If \"-l\" is used but no file is specified, IR code will be printed to the console." << std::endl;
 		std::cout << "\t-v: Specify where to dump visualization file." << std::endl;
 		std::cout << "\t-O: Specify the level of optimization. Supported: -O0, -O1, -O2, -O3, -Oz, -Os." << std::endl;
@@ -39,19 +39,11 @@ int main(int argc, const char* argv[]) {
 	freopen(InputFile.c_str(), "r", stdin);
 	//Get output file
 	if (!ArgParser.TryGetArgment("o", OutputExecutable) || OutputExecutable == "") {
-#if defined(_WIN32) || defined(_WIN64)
-		//Windows platform
-		OutputExecutable = "a.exe";
-#elif defined(__unix__)
-		//Unix platform
-		OutputExecutable = "a.out";
-#endif
+		OutputExecutable = "a.o";
 	}
-#if defined(_WIN32) || defined(_WIN64)
-	else if (OutputExecutable.length() <= 4 || OutputExecutable.substr(OutputExecutable.length() - 4) != ".exe") {
-		OutputExecutable = OutputExecutable + ".exe";
+	else if (OutputExecutable.length() <= 2 || OutputExecutable.substr(OutputExecutable.length() - 2) != ".o") {
+		OutputExecutable = OutputExecutable + ".o";
 	}
-#endif
 	//Get IRCode file
 	GenIR = ArgParser.TryGetArgment("l", LLVMIRCodeFile);
 	//Get visualization file

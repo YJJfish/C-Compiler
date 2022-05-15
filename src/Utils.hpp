@@ -177,6 +177,18 @@ llvm::Value* CreateCmpEQ(llvm::Value* LHS, llvm::Value* RHS) {
 			IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
 		);
 	}
+	else if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
+		return IRBuilder.CreateICmpEQ(
+			IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
+			TypeUpgrading(RHS, IRBuilder.getInt64Ty())
+		);
+	}
+	else if (LHS->getType()->isIntegerTy() && RHS->getType()->isPointerTy()) {
+		return IRBuilder.CreateICmpEQ(
+			TypeUpgrading(LHS, IRBuilder.getInt64Ty()),
+			IRBuilder.CreatePtrToInt(RHS, IRBuilder.getInt64Ty())
+		);
+	}
 	throw std::domain_error("Comparison \"==\" using unsupported type combination.");
 	return NULL;
 }
