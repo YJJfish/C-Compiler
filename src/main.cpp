@@ -12,7 +12,7 @@ int main(int argc, const char* argv[]) {
 	if (argc == 1) {
 		std::cout << "[" << argv[0] << "] Usage:" << std::endl;
 		std::cout << "\t-i: Specify input file (source code). REQUIRED" << std::endl;
-		std::cout << "\t-o: Specify output file (target code). DEFAULT: a.o" << std::endl;
+		std::cout << "\t-o: Specify output file (object code). DEFAULT: a.o" << std::endl;
 		std::cout << "\t-l: Specify where to dump llvm IR code. If \"-l\" is used but no file is specified, IR code will be printed to the console." << std::endl;
 		std::cout << "\t-v: Specify where to dump visualization file." << std::endl;
 		std::cout << "\t-O: Specify the level of optimization. Supported: -O0, -O1, -O2, -O3, -Oz, -Os." << std::endl;
@@ -20,7 +20,7 @@ int main(int argc, const char* argv[]) {
 	}
 	//Parse arguments
 	std::string InputFile;							//-i
-	std::string OutputExecutable;					//-o
+	std::string OutputObjectFile;					//-o
 	std::string LLVMIRCodeFile;	bool GenIR;			//-l
 	std::string VisualizationFile; bool GenVis;		//-v
 	std::string OptimizeLevel;						//-O
@@ -38,11 +38,11 @@ int main(int argc, const char* argv[]) {
 	}
 	freopen(InputFile.c_str(), "r", stdin);
 	//Get output file
-	if (!ArgParser.TryGetArgment("o", OutputExecutable) || OutputExecutable == "") {
-		OutputExecutable = "a.o";
+	if (!ArgParser.TryGetArgment("o", OutputObjectFile) || OutputObjectFile == "") {
+		OutputObjectFile = "a.o";
 	}
-	else if (OutputExecutable.length() <= 2 || OutputExecutable.substr(OutputExecutable.length() - 2) != ".o") {
-		OutputExecutable = OutputExecutable + ".o";
+	else if (OutputObjectFile.length() <= 2 || OutputObjectFile.substr(OutputObjectFile.length() - 2) != ".o") {
+		OutputObjectFile = OutputObjectFile + ".o";
 	}
 	//Get IRCode file
 	GenIR = ArgParser.TryGetArgment("l", LLVMIRCodeFile);
@@ -80,7 +80,7 @@ int main(int argc, const char* argv[]) {
 		return 1;
 	}
 	//Generate executable
-	Gen.GenExecutable(OutputExecutable);
+	Gen.GenObjectCode(OutputObjectFile);
 	//Dump IR code
 	if (GenIR)
 		Gen.DumpIRCode(LLVMIRCodeFile);

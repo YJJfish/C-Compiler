@@ -237,7 +237,7 @@ llvm::Value* CreateAdd(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
 				IRBuilder.CreateMul(
 					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
-					IRBuilder.getInt64(Generator.DL->getTypeAllocSize(LHS->getType()->getNonOpaquePointerElementType()))
+					IRBuilder.getInt64(Generator.GetTypeSize(LHS->getType()->getNonOpaquePointerElementType()))
 				)
 			),
 			LHS->getType()
@@ -269,7 +269,7 @@ llvm::Value* CreateSub(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
 				IRBuilder.CreateMul(
 					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
-					IRBuilder.getInt64(Generator.DL->getTypeAllocSize(LHS->getType()->getNonOpaquePointerElementType()))
+					IRBuilder.getInt64(Generator.GetTypeSize(LHS->getType()->getNonOpaquePointerElementType()))
 				)
 			),
 			LHS->getType()

@@ -514,9 +514,13 @@ In conclusion, The grammar of our language is:
 ## Usage
 
 `-i`: Specify input file (source code). REQUIRED.
-`-o`: Specify output file (target code). DEFAULT: `a.o`.
+
+`-o`: Specify output file (object code). DEFAULT: `a.o`.
+
 `-l`: Specify where to dump llvm IR code. If \"`-l`\" is used but no file is specified, IR code will be printed to the console.
+
 `-v`: Specify where to dump visualization file.
+
 `-O`: Specify the level of optimization. Supported: `-O0`, `-O1`, `-O2`, `-O3`, `-Oz`, `-Os`.
 
 For example, if you have successfully compiled our code and get an executable whose name is `C-Compiler` or `C-Compiler.exe`. In the same directory, there is a test code whose name is `Test.c`. Execute the following command:
