@@ -429,9 +429,9 @@ In conclusion, The grammar of our language is:
   ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr RPAREN Stmt |
   				FOR LPAREN VarDecl Expr SEMI Expr RPAREN Stmt
   
-  WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt |
+  WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
   
-  DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN
+  DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN SEMI
   
   SwitchStmt->	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE
   

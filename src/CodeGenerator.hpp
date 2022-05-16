@@ -85,7 +85,7 @@ private:
 	llvm::Function* CurrFunction;						//Current function
 	IdentifiedStructTypeTable* StructTypeTable;			//Struct type table
 	std::vector<TypedefTable*> TypedefStack;			//Typedef symbol table
-	std::vector<VariableTable*> VariableStack;			//Local variable symbol table
+	std::vector<VariableTable*> VariableStack;			//Variable symbol table
 	std::vector<llvm::BasicBlock*> ContinueBlockStack;	//Store blocks for "continue" statement
 	std::vector<llvm::BasicBlock*> BreakBlockStack;		//Store blocks for "break" statement
 	llvm::BasicBlock* TmpBB;							//Temp block for global instruction code generation

@@ -272,7 +272,7 @@ ForStmt:	FOR LPAREN Expr SEMI Expr SEMI Expr RPAREN Stmt			{  $$ = new AST::ForS
 WhileStmt:	WHILE LPAREN Expr RPAREN Stmt							{  $$ = new AST::WhileStmt($3,$5);   }
 			;
 
-DoStmt:		DO Stmt WHILE LPAREN Expr RPAREN						{  $$ = new AST::DoStmt($2,$5);   }
+DoStmt:		DO Stmt WHILE LPAREN Expr RPAREN SEMI					{  $$ = new AST::DoStmt($2,$5);   }
 			;
 
 SwitchStmt:	SWITCH LPAREN Expr RPAREN LBRACE CaseList RBRACE		{  $$ = new AST::SwitchStmt($3,$6);   }
