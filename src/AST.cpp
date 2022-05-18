@@ -711,9 +711,15 @@ namespace AST {
 			return IRBuilder.getInt64(__Generator.GetTypeSize(this->_Arg2->GetLLVMType(__Generator)));
 		else {//Single identifier
 			llvm::Type* Type = __Generator.FindType(this->_Arg3);
-			if (Type) return IRBuilder.getInt64(__Generator.GetTypeSize(Type));
+			if (Type) {
+				this->_Arg2 = new DefinedType(this->_Arg3);
+				return IRBuilder.getInt64(__Generator.GetTypeSize(Type));
+			}
 			llvm::Value* Var = __Generator.FindVariable(this->_Arg3);
-			if (Var) return IRBuilder.getInt64(__Generator.GetTypeSize(Var->getType()->getNonOpaquePointerElementType()));
+			if (Var) {
+				this->_Arg1 = new Variable(this->_Arg3);
+				return IRBuilder.getInt64(__Generator.GetTypeSize(Var->getType()->getNonOpaquePointerElementType()));
+			}
 			throw std::logic_error(this->_Arg3 + " is neither a type nor a variable.");
 			return NULL;
 		}

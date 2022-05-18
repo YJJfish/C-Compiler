@@ -161,4 +161,7 @@ public:
 
 	//Generate object code
 	void GenObjectCode(std::string FileName);
+
+	//Generate visualization file (.html)
+	void GenHTML(std::string FileName, AST::Program& Root);
 };

@@ -50,6 +50,9 @@ int main(int argc, const char* argv[]) {
 	GenIR = ArgParser.TryGetArgment("l", LLVMIRCodeFile);
 	//Get visualization file
 	GenVis = ArgParser.TryGetArgment("v", VisualizationFile);
+	if ((VisualizationFile.length() <= 5) || VisualizationFile.substr(VisualizationFile.length() - 5) != ".html") {
+		VisualizationFile = VisualizationFile + ".html";
+	}
 	//Get optimization option
 	if (ArgParser.TryGetArgment("O0", OptimizeLevel))
 		OptimizeLevel = "O0";
@@ -81,14 +84,13 @@ int main(int argc, const char* argv[]) {
 #endif
 		return 1;
 	}
-	//Generate executable
+	//Generate object code
 	Gen.GenObjectCode(OutputObjectFile);
 	//Dump IR code
 	if (GenIR)
 		Gen.DumpIRCode(LLVMIRCodeFile);
 	//Visualization
 	if (GenVis) {
-		std::ofstream json(VisualizationFile);
-		json << Root->astJson() << std::endl;
+		Gen.GenHTML(VisualizationFile, *Root);
 	}
 }

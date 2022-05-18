@@ -316,7 +316,6 @@ string SizeOf::astJson() {
 		children.push_back(_Arg1->astJson());
 	if (_Arg2 != NULL)
 		children.push_back(_Arg2->astJson());
-	children.push_back(getJson(_Arg3));
 	return getJson("Sizeof", children);
 }
 

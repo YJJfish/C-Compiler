@@ -282,3 +282,15 @@ void CodeGenerator::GenObjectCode(std::string FileName) {
 	PM.run(*Module);
 	Dest.flush();
 }
+
+//Generate visualization file (.html)
+void CodeGenerator::GenHTML(std::string FileName, AST::Program& Root) {
+	extern const char* Html;
+	std::string OutputString = Html;
+	std::string Json = Root.astJson();
+	std::string Target = "${ASTJson}";
+	auto Pos = OutputString.find(Target);
+	OutputString.replace(Pos, Target.length(), Json.c_str());
+	std::ofstream HTMLFile(FileName);
+	HTMLFile << OutputString;
+}
