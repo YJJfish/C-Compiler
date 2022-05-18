@@ -336,7 +336,6 @@ namespace AST {
 			if (Mem->_hasValue)
 				LastVal = Mem->_Value;
 			else {
-				Mem->_hasValue = true;
 				Mem->_Value = ++LastVal;
 			}
 		//Enum type is actually an int32 type.

@@ -1,3 +1,5 @@
+#include <iostream>
+#include <fstream>
 #include <exception>
 #include "AST.hpp"
 #include "CodeGenerator.hpp"
@@ -86,6 +88,7 @@ int main(int argc, const char* argv[]) {
 		Gen.DumpIRCode(LLVMIRCodeFile);
 	//Visualization
 	if (GenVis) {
-		//To be implemented
+		std::ofstream json(VisualizationFile);
+		json << Root->astJson() << std::endl;
 	}
 }

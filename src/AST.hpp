@@ -153,6 +153,7 @@ namespace AST {
 		Node(void) {}
 		~Node(void) {}
 		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		virtual std::string astJson() = 0;
 	};
 
 	//The root node of AST
@@ -164,6 +165,7 @@ namespace AST {
 		Program(Decls* _Decls) :_Decls(_Decls) {}
 		~Program(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Pure virtual class for statement
@@ -171,7 +173,8 @@ namespace AST {
 	public:
 		Stmt(void) {}
 		~Stmt(void) {}
-		llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		virtual std::string astJson() = 0;
 	};
 
 	//Pure virtual class for Declarations
@@ -180,6 +183,7 @@ namespace AST {
 		Decl(void) {}
 		~Decl(void) {}
 		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		virtual std::string astJson() = 0;
 	};
 
 	//Function declaration
@@ -200,6 +204,7 @@ namespace AST {
 			_RetType(__RetType), _Name(__Name), _ArgList(__ArgList), _FuncBody(__FuncBody) {}
 		~FuncDecl(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Function body
@@ -211,6 +216,7 @@ namespace AST {
 		FuncBody(Stmts* __Content) :_Content(__Content) {}
 		~FuncBody(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Variable declaration
@@ -225,6 +231,7 @@ namespace AST {
 			_VarType(__VarType), _VarList(__VarList) {}
 		~VarDecl(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 	
 	//A variable in one variable declaration
@@ -242,6 +249,7 @@ namespace AST {
 		~VarInit(void) {}
 		//VarInit class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		std::string astJson();
 	};
 
 	//Type declaration
@@ -256,6 +264,7 @@ namespace AST {
 			_VarType(__VarType), _Alias(__Alias) {}
 		~TypeDecl(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Base class for variable type
@@ -284,6 +293,7 @@ namespace AST {
 		virtual bool isArrayType(void) = 0;
 		virtual bool isStructType(void) = 0;
 		virtual bool isEnumType(void) = 0;
+		virtual std::string astJson() = 0;
 	};
 
 	//Built-in type
@@ -315,6 +325,7 @@ namespace AST {
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
 		bool isEnumType(void) { return false; }
+		std::string astJson();
 	};
 
 	//Defined type. Use this class when only an identifier is given.
@@ -335,6 +346,7 @@ namespace AST {
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
 		bool isEnumType(void) { return false; }
+		std::string astJson();
 	};
 
 	//Pointer type.
@@ -356,6 +368,7 @@ namespace AST {
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
 		bool isEnumType(void) { return false; }
+		std::string astJson();
 	};
 
 	//Array Type
@@ -379,6 +392,7 @@ namespace AST {
 		bool isArrayType(void) { return true; }
 		bool isStructType(void) { return false; }
 		bool isEnumType(void) { return false; }
+		std::string astJson();
 	};
 
 	//Struct Type
@@ -405,6 +419,7 @@ namespace AST {
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return true; }
 		bool isEnumType(void) { return false; }
+		std::string astJson();
 	};
 
 	//Field declaration for struct type
@@ -419,6 +434,7 @@ namespace AST {
 		~FieldDecl(void) {}
 		//FieldDecl class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		std::string astJson();
 	};
 
 	//Enum Type
@@ -439,6 +455,7 @@ namespace AST {
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
 		bool isEnumType(void) { return true; }
+		std::string astJson();
 	};
 
 	//A single enum member
@@ -455,6 +472,7 @@ namespace AST {
 		~Enm(void) {}
 		//Enm class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		std::string astJson();
 	};
 
 	//Function argument list
@@ -468,6 +486,7 @@ namespace AST {
 		~ArgList(void) {}
 		//ArgList class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		std::string astJson();
 	};
 
 	//Function argument
@@ -483,6 +502,7 @@ namespace AST {
 		~Arg(void) {}
 		//Arg class don't need an actual CodeGen function
 		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		std::string astJson();
 	};
 
 	//Statement block
@@ -494,6 +514,7 @@ namespace AST {
 		Block(Stmts* __Content) :_Content(__Content) {}
 		~Block(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//If statement
@@ -507,6 +528,7 @@ namespace AST {
 		IfStmt(Expr* __Condition, Stmt* __Then, Stmt* __Else = NULL) : _Condition(__Condition), _Then(__Then), _Else(__Else) {}
 		~IfStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//While statement
@@ -519,6 +541,7 @@ namespace AST {
 		WhileStmt(Expr* __Condition, Stmt* __LoopBody) : _Condition(__Condition), _LoopBody(__LoopBody) {}
 		~WhileStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Do statement
@@ -531,6 +554,7 @@ namespace AST {
 		DoStmt(Stmt* __LoopBody, Expr* __Condition) : _LoopBody(__LoopBody), _Condition(__Condition) {}
 		~DoStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//For statement
@@ -546,6 +570,7 @@ namespace AST {
 			_Initial(__Initial), _Condition(__Condition), _Tail(__Tail), _LoopBody(__LoopBody) {}
 		~ForStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Switch statement
@@ -558,6 +583,7 @@ namespace AST {
 		SwitchStmt(Expr* __Matcher, CaseList* __CaseList) : _Matcher(__Matcher), _CaseList(__CaseList) {}
 		~SwitchStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Case statement in switch statement
@@ -571,6 +597,7 @@ namespace AST {
 		CaseStmt(Expr* __Condition, Stmts* __Content) : _Condition(__Condition), _Content(__Content) {}
 		~CaseStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Continue statement
@@ -579,6 +606,7 @@ namespace AST {
 		ContinueStmt(void) {}
 		~ContinueStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Break statement
@@ -587,6 +615,7 @@ namespace AST {
 		BreakStmt(void) {}
 		~BreakStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Return statement
@@ -597,6 +626,7 @@ namespace AST {
 		ReturnStmt(Expr* __RetVal = NULL) : _RetVal(__RetVal) {}
 		~ReturnStmt(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Pure virtual class for expression
@@ -610,6 +640,7 @@ namespace AST {
 		//It is used to implement the "left value" in C language,
 		//e.g., the LHS of the assignment.
 		virtual llvm::Value* CodeGenPtr(CodeGenerator& __Generator) = 0;
+		virtual std::string astJson() = 0;
 	};
 
 	//Subscript, e.g. a[10]
@@ -621,6 +652,7 @@ namespace AST {
 		~Subscript(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 	
 	//Operator sizeof() in C
@@ -635,6 +667,7 @@ namespace AST {
 		~SizeOf(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	//Function call
@@ -646,6 +679,7 @@ namespace AST {
 		~FunctionCall(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class StructReference : public Expr {
@@ -656,6 +690,7 @@ namespace AST {
 		~StructReference(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class StructDereference : public Expr {
@@ -666,6 +701,7 @@ namespace AST {
 		~StructDereference(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class UnaryPlus : public Expr {
@@ -675,6 +711,7 @@ namespace AST {
 		~UnaryPlus(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class UnaryMinus : public Expr {
@@ -684,6 +721,7 @@ namespace AST {
 		~UnaryMinus(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class TypeCast : public Expr {
@@ -694,6 +732,7 @@ namespace AST {
 		~TypeCast(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class PrefixInc : public Expr {
@@ -703,6 +742,7 @@ namespace AST {
 		~PrefixInc(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class PostfixInc : public Expr {
@@ -712,6 +752,7 @@ namespace AST {
 		~PostfixInc(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class PrefixDec : public Expr {
@@ -721,6 +762,7 @@ namespace AST {
 		~PrefixDec(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class PostfixDec : public Expr {
@@ -730,6 +772,7 @@ namespace AST {
 		~PostfixDec(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Indirection : public Expr {
@@ -739,6 +782,7 @@ namespace AST {
 		~Indirection(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class AddressOf : public Expr {
@@ -748,6 +792,7 @@ namespace AST {
 		~AddressOf(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicNot : public Expr {
@@ -757,6 +802,7 @@ namespace AST {
 		~LogicNot(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseNot : public Expr {
@@ -766,6 +812,7 @@ namespace AST {
 		~BitwiseNot(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Division : public Expr {
@@ -776,6 +823,7 @@ namespace AST {
 		~Division(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Multiplication : public Expr {
@@ -786,6 +834,7 @@ namespace AST {
 		~Multiplication(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Modulo : public Expr {
@@ -796,6 +845,7 @@ namespace AST {
 		~Modulo(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Addition : public Expr {
@@ -806,6 +856,7 @@ namespace AST {
 		~Addition(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Subtraction : public Expr {
@@ -816,6 +867,7 @@ namespace AST {
 		~Subtraction(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LeftShift : public Expr {
@@ -826,6 +878,7 @@ namespace AST {
 		~LeftShift(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class RightShift : public Expr {
@@ -836,6 +889,7 @@ namespace AST {
 		~RightShift(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicGT : public Expr {
@@ -846,6 +900,7 @@ namespace AST {
 		~LogicGT(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicGE : public Expr {
@@ -856,6 +911,7 @@ namespace AST {
 		~LogicGE(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicLT : public Expr {
@@ -866,6 +922,7 @@ namespace AST {
 		~LogicLT(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicLE : public Expr {
@@ -876,6 +933,7 @@ namespace AST {
 		~LogicLE(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicEQ : public Expr {
@@ -886,6 +944,7 @@ namespace AST {
 		~LogicEQ(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicNEQ : public Expr {
@@ -896,6 +955,7 @@ namespace AST {
 		~LogicNEQ(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseAND : public Expr {
@@ -906,6 +966,7 @@ namespace AST {
 		~BitwiseAND(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseXOR : public Expr {
@@ -916,6 +977,7 @@ namespace AST {
 		~BitwiseXOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseOR : public Expr {
@@ -926,6 +988,7 @@ namespace AST {
 		~BitwiseOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicAND : public Expr {
@@ -936,6 +999,7 @@ namespace AST {
 		~LogicAND(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class LogicOR : public Expr {
@@ -946,6 +1010,7 @@ namespace AST {
 		~LogicOR(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class TernaryCondition : public Expr {
@@ -957,6 +1022,7 @@ namespace AST {
 		~TernaryCondition(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class DirectAssign : public Expr {
@@ -967,6 +1033,7 @@ namespace AST {
 		~DirectAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class DivAssign : public Expr {
@@ -977,6 +1044,7 @@ namespace AST {
 		~DivAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class MulAssign : public Expr {
@@ -987,6 +1055,7 @@ namespace AST {
 		~MulAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class ModAssign : public Expr {
@@ -997,6 +1066,7 @@ namespace AST {
 		~ModAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class AddAssign : public Expr {
@@ -1007,6 +1077,7 @@ namespace AST {
 		~AddAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class SubAssign : public Expr {
@@ -1017,6 +1088,7 @@ namespace AST {
 		~SubAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class SHLAssign : public Expr {
@@ -1027,6 +1099,7 @@ namespace AST {
 		~SHLAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 	class SHRAssign : public Expr {
 	public:
@@ -1036,6 +1109,7 @@ namespace AST {
 		~SHRAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseANDAssign : public Expr {
@@ -1046,6 +1120,7 @@ namespace AST {
 		~BitwiseANDAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseXORAssign : public Expr {
@@ -1056,6 +1131,7 @@ namespace AST {
 		~BitwiseXORAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class BitwiseORAssign : public Expr {
@@ -1066,6 +1142,7 @@ namespace AST {
 		~BitwiseORAssign(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class CommaExpr : public Expr {
@@ -1076,6 +1153,7 @@ namespace AST {
 		~CommaExpr(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Variable : public Expr {
@@ -1085,6 +1163,7 @@ namespace AST {
 		~Variable(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class Constant : public Expr {
@@ -1105,6 +1184,7 @@ namespace AST {
 		~Constant(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 
 	class GlobalString : public Constant {
@@ -1114,5 +1194,6 @@ namespace AST {
 		~GlobalString(void) {}
 		llvm::Value* CodeGen(CodeGenerator& __Generator);
 		llvm::Value* CodeGenPtr(CodeGenerator& __Generator);
+		std::string astJson();
 	};
 }

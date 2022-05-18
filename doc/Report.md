@@ -2,7 +2,7 @@
 
  
 
-![img](Images/clip_image002.gif)
+![img](images/clip_image002.gif)
 
  
 
@@ -96,7 +96,7 @@ LLVM(Low Level Virtual Machine)是以C++编写的编译器基础设施，包含�
 
 在本次实验中，我们将使用LLVM C++ API来完成C语言到LLVM-IR的转换。LLVM IR是LLVM的核心所在，通过将不同高级语言的前端翻译成LLVM IR进行优化、链接后再传给不同目标的后端转换成为二进制代码，前端、优化、后端三个阶段互相解耦，这种模块化的设计使得LLVM优化不依赖于任何源码和目标机器。
 
-<img src="Images/image-20220516140804574.png" alt="image-20220516140804574" style="zoom:80%;" />
+<img src="images/image-20220516140804574.png" alt="image-20220516140804574" style="zoom:80%;" />
 
 ### 3.2 语义分析环境
 
@@ -313,7 +313,9 @@ struct {int x, y;} test(void){
 }
 ```
 
-因此，不存在结构体类型的相互覆盖问题。我们只需要用一个映射表即可：
+因此，不存在结构体类型的相互覆盖问题。相应的，如果我们在LLVM中也是使用Identified structure而非Literal structure，那么得到的`llvm::Value*`实例也是独一无二的。
+
+我们只需要用一个映射表即可：
 
 ```C++
 //Since llvm's structs' members don't have names, we need to implement it manually.
@@ -775,7 +777,7 @@ IfStmt ->		IF LPAREN Expr RPAREN Stmt ELSE Stmt |
 
 最后，将插入点设置为“Merge”语句块，返回。
 
-<img src="Images/image-20220516201218269.png" alt="image-20220516201218269" style="zoom: 50%;" />
+<img src="images/image-20220516201218269.png" alt="image-20220516201218269" style="zoom: 50%;" />
 
 当然，这样的代码存在一些bug。例如，对于以下语句：
 
@@ -869,7 +871,7 @@ llvm::BranchInst* TerminateBlockByBr(llvm::BasicBlock* BB) {
 WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
 ```
 
-<img src="Images/image-20220516202414203.png" alt="image-20220516202414203" style="zoom:50%;" />
+<img src="images/image-20220516202414203.png" alt="image-20220516202414203" style="zoom:50%;" />
 
 需要注意两个地方：
 
@@ -929,7 +931,7 @@ WhileStmt ->	WHILE LPAREN Expr RPAREN Stmt
 DoStmt ->		DO Stmt WHILE LPAREN Expr RPAREN SEMI
 ```
 
-<img src="Images/image-20220516204315905.png" alt="image-20220516204315905" style="zoom:50%;" />
+<img src="images/image-20220516204315905.png" alt="image-20220516204315905" style="zoom:50%;" />
 
 代码如下：
 
@@ -985,7 +987,7 @@ ForStmt ->		FOR LPAREN Expr SEMI Expr SEMI Expr RPAREN Stmt |
 
 其结构如下：
 
-<img src="Images/image-20220516205124117.png" alt="image-20220516205124117" style="zoom: 80%;" />
+<img src="images/image-20220516205124117.png" alt="image-20220516205124117" style="zoom: 80%;" />
 
 需要注意：
 
@@ -1593,7 +1595,83 @@ node->next->next=node;
 	};
 ```
 
+#### 3.6.2 字面量
 
+我们的编译器支持6种字面量。分别如下：
+
+```
+TRUE			"true"
+FALSE			"false"
+CHARACTER		"\'\\"."\'" | "\'"[^\\']"\'"
+STRING			"\""(\\.|[^"\\])*"\""
+REAL			[0-9]+\.[0-9]+
+INTERGER		[0-9]+
+```
+
+在AST中，常量字符串用`AST::GlobalString`表示，其他都用`AST::Constant`对象表示。
+
+#### 3.6.3 字符(串)转义
+
+我们编译器支持输入转义字符(串)。这部分代码在`Lexer.l`中。具体算法就是在引号内读取到转义符`\`时，继续读下一个字符，将其转义成对应的ascii码：
+
+```C++
+char Escape2Char(char ch){
+	switch(ch){
+	case 'a': return '\a';
+	case 'b': return '\b';
+	case 'f': return '\f';
+	case 'n': return '\n';
+	case 'r': return '\r';
+	case 't': return '\t';
+	case 'v': return '\v';
+	case '\\': return '\\';
+	case '\'': return '\'';
+	case '\"': return '\"';
+	default:
+		if ('0'<=ch && ch<='9')
+			return (char)(ch-'0');
+		else
+			return ch;
+	}
+}
+```
+
+#### 3.6.3 右值
+
+对于右值，一旦调用其`CodeGenPtr`方法，就应该触发异常。我们只需要实现其`CodeGen`方法即可。
+
+##### 3.6.3.1 Constant类
+
+`AST::Constant`只能作为右值，不能作为左值。它的代码生成也很简单，直接调用`IRBuilder.getInt1`, `IRBuilder.getInt8`, `IRBuilder.getInt16`, `IRBuilder.getInt32`, `IRBuilder.getInt64`, `IRBuilder.getIntFP`接口即可：
+
+```C++
+	//Constant, e.g. 1, 1.0, 'c', true, false
+	llvm::Value* Constant::CodeGen(CodeGenerator& __Generator) {
+		switch (this->_Type) {
+		case BuiltInType::TypeID::_Bool:
+			return IRBuilder.getInt1(this->_Bool);
+		case BuiltInType::TypeID::_Char:
+			return IRBuilder.getInt8(this->_Character);
+		case BuiltInType::TypeID::_Int:
+			return IRBuilder.getInt32(this->_Integer);
+		case BuiltInType::TypeID::_Double:
+			return llvm::ConstantFP::get(IRBuilder.getDoubleTy(), this->_Real);
+		}
+	}
+```
+
+##### 3.6.3.2 GlobalString类
+
+常量字符串`AST::GlobalString`也只能作为右值。调用`IRBuilder.CreateGlobalStringPtr`接口即可：
+
+```C++
+	//Global string, e.g. "123", "3\"124\t\n"
+	llvm::Value* GlobalString::CodeGen(CodeGenerator& __Generator) {
+		return IRBuilder.CreateGlobalStringPtr(this->_Content.c_str());
+	}
+```
+
+##### 3.6.3.3 二元算术运算符
 
 ## 四、优化考虑
 
