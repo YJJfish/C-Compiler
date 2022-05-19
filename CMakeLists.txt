@@ -48,8 +48,7 @@ add_executable(${project_name} ${SOURCES})
 # Link
 ###############################################
 
-execute_process(WORKING_DIRECTORY E:/llvm/build/Release/bin
-				COMMAND llvm-config --libs all
+execute_process(COMMAND llvm-config-14 --libs all
 				OUTPUT_VARIABLE llvm_libs)
 string(STRIP ${llvm_libs} llvm_libs)
 string(REPLACE " " ";" llvm_libs ${llvm_libs})

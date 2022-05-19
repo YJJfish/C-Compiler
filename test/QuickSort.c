@@ -42,7 +42,7 @@ int main(void){
 	printf("Input %d integers:\n", N);
 	for (int i = 0; i < N; i++)
 		scanf("%d", &Arr[i]);
-	QuickSort(Arr, 0, N);
+	QuickSort(Arr, 0, N - 1);
 	printf("QuickSort result:\n");
 	for (int i = 0; i < N; i++)
 		printf("%d ", Arr[i]);

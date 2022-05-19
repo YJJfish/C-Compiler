@@ -39,6 +39,7 @@
 本次实验完成了一个C语言的编译器，能够分析C语言的语法，并将其编译至LLVM IR，最后再编译至目标代码（`.o`文件）。我们实现的C编译器支持以下C语言特性：
 
 - **所有C语言基本语句**。包括`if`, `for`, `while`, `do`, `switch`, `case`, `break`, `continue`, `return`。
+- **所有C语言表达式**。包括括号`()`, 数组下标`[]`, `sizeof`, 函数调用, 结构体`->`, `.`, 一元`+`, 一元`-`, 强制类型转换, 前缀`++`, 前缀`--`, 后缀`++`, 后缀`--`, 取地址`&`, 取内存`*`, 位运算`&`, `|`, `~`, `^`，逻辑运算`||`, `&&`, `!`, 比较运算`>`, `>=`, `<`, `<=`, `==`, `!=`, 算术运算`+`, `-`, `*`, `/`, `%`, 移位运算`<<`, `>>`, 赋值语句`=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `|=`, `&=`, `^=`, 逗号表达式`,`, 三元运算符`?:`。
 - **类型系统**。基本数据类型包括`bool`, `char`, `short`, `int`, `long`, `float`, `double`, `void`。复杂数据类型`array`, `struct`, `enum`。支持`typedef`。
 - **递归式结构体**。结构体内可以定义指向自己类型的指针，从而实现链表。
 
@@ -53,19 +54,110 @@
 
 ### 0.1 依赖项
 
+1. Flex & Bison
 
+   我们使用flex和bison生成词法分析器和语法分析器。
+
+2. LLVM-14
+
+   我们使用LLVM来完成语义分析、中间代码生成、编译器优化、目标代码生成。由于不同版本的LLVM的API不一致，请确保安装的LLVM是14版本。
+
+3. CMake
+
+   我们使用CMake来构建工程。
 
 ### 0.2 安装说明
 
+1. Windows
 
+   - 安装Flex
+
+     Windows下的Flex可以通过GnuWin32安装。
+
+     链接：http://gnuwin32.sourceforge.net/packages/flex.htm
+
+     **请确保安装路径不含空格字符**。
+
+   - 安装Bison
+
+     Windows下的Bison可以通过GnuWin32安装。
+
+     链接：http://gnuwin32.sourceforge.net/packages/bison.htm
+
+     **请确保安装路径不含空格字符**。
+
+   - 将`<GNU Flex&Bison 安装路径>\GnuWin32\bin`加入到系统环境变量。
+
+   - 安装LLVM C++ API
+
+     在Windows上，我们推荐使用VS2019来安装LLVM库。请参考[Getting Started with the LLVM System using Microsoft Visual Studio](https://llvm.org/docs/GettingStartedVS.html)。请确保安装的LLVM版本是14版本。
+
+2. Ubuntu
+
+   - 安装Flex & Bison
+
+     `sudo apt-get update && sudo apt-get upgrade && sudo apt-get install flex bison`
+
+   - 安装LLVM C++ API
+
+     `sudo apt-get install llvm-14`
 
 ### 0.3 工程搭建 & 编译
 
+1. 进入工程的根目录。当前目录下有：
 
+   ```
+   doc/
+   include/
+   src/
+   test/
+   CMakeLists.txt
+   README.md
+   ```
+
+2. 用CMake搭建工程。
+
+   `cmake -S . -B ./build `
+
+   `cd ./build`
+
+   `cmake`这一步会自动调用`flex`和`bison`，在`src/`目录下生成`Lexer.cpp`，`Parser.hpp`和`Parser.cpp`。
+
+   如果在Ubuntu下CMake因为找不到“zlib”包而抛出错误，这是由于LLVM的依赖项而非我们工程的依赖项导致的。请安装zlib：
+
+   `sudo apt install zlib1g-dev`
+
+3. 如果你使用的是Windows且安装了VS2019，那么CMake默认会在生成VS2019的解决方案`.sln`。编译时请将编译模式修改为`Release x64`。
+
+   如果你使用的是Ubuntu，那么CMake默认会生成一个含`Makefile`的工程。使用`make`指令来编译。
 
 ### 0.4 使用手册
 
+编译成功后产生可执行文件。使用方法如下：
 
+- `-i`: 指定输入文件（源代码）。必填
+
+- `-o`: 指定输出文件（目标代码）。默认为`a.o`.
+
+- `-l`: 指定中间代码输出文件。如果使用了`-l`选项而未指定任何文件，则输出到控制台屏幕。
+
+- `-v`: 指定AST可视化输出文件。
+
+- `-O`: 指定编译器优化选项。支持`-O0`, `-O1`, `-O2`, `-O3`, `-Oz`, `-Os`。
+
+例如，假设当前目录下有编译得到的可执行文件`C-Compiler`或`C-Compiler.exe`。同一目录下，还有测试文件`Test.c`。
+
+执行以下指令：
+
+`./C-Compiler -i ./Test.c -o Test.o -O3 -l`
+
+我们的编译器会把`Test.c`作为输入。开启`O3`优化。中间代码会输出到控制台屏幕。目标代码写入`Test.o`文件。
+
+最后，可以使用任何链接器将`Test.o`转为可执行文件并执行，例如：
+
+`gcc ./Test.o`
+
+`./a.exe`(Windows) or `./a.out`(Linux)
 
 ### 0.5 代码规范
 
@@ -2190,14 +2282,554 @@ char Escape2Char(char ch){
 	}
 ```
 
-##### 3.6.3.3 二元算术运算符
+##### 3.6.3.3 FunctionCall类
+
+函数调用只能产生右值。函数调用可以使用接口`IRBuilder.CreateCall`来实现。需要注意的是，在传参时我们需要像C语言一样来完成类型转换（利用上文定义的`TypeCasting`函数）。
+
+```C++
+	//Function call
+	llvm::Value* FunctionCall::CodeGen(CodeGenerator& __Generator) {
+		//Get the function. Throw exception if the function doesn't exist.
+		llvm::Function* Func = __Generator.Module->getFunction(this->_FuncName);
+		if (Func == NULL) {
+			throw std::domain_error(this->_FuncName + " is not a defined function.");
+			return NULL;
+		}
+		//Check the number of args. If Func took a different number of args, reject.
+		if (Func->isVarArg() && this->_ArgList->size() < Func->arg_size() ||
+			!Func->isVarArg() && this->_ArgList->size() != Func->arg_size()) {
+			throw std::invalid_argument("Args doesn't match when calling function " + this->_FuncName + ". Expected " + std::to_string(Func->arg_size()) + ", got " + std::to_string(this->_ArgList->size()));
+			return NULL;
+		}
+		//Check arg types. If Func took different different arg types, reject.
+		std::vector<llvm::Value*> ArgList;
+		size_t Index = 0;
+		for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++) {
+			llvm::Value* Arg = this->_ArgList->at(Index)->CodeGen(__Generator);
+			Arg = TypeCasting(Arg, ArgIter->getType());
+			if (Arg == NULL) {
+				throw std::invalid_argument(std::to_string(Index) + "-th arg type doesn't match when calling function " + this->_FuncName + ".");
+				return NULL;
+			}
+			ArgList.push_back(Arg);
+		}
+		//Continue to push arguments if this function takes a variable number of arguments
+		//According to the C standard, bool/char/short should be extended to int, and float should be extended to double
+		if (Func->isVarArg())
+			for (; Index < this->_ArgList->size(); Index++) {
+				llvm::Value* Arg = this->_ArgList->at(Index)->CodeGen(__Generator);
+				if (Arg->getType()->isIntegerTy())
+					Arg = TypeUpgrading(Arg, IRBuilder.getInt32Ty());
+				else if (Arg->getType()->isFloatingPointTy())
+					Arg = TypeUpgrading(Arg, IRBuilder.getDoubleTy());
+				ArgList.push_back(Arg);
+			}
+		//Create function call.
+		return IRBuilder.CreateCall(Func, ArgList);
+	}
+```
+
+##### 3.6.3.4 TypeCast类
+
+强制类型转换只能产生右值。例如`(int)a`，即使`a`是一个可以作为左值的变量，在类型转换后也只能作为右值使用了。
+
+强制类型转换的实现，直接调用上文实现的`TypeCasting`函数即可：
+
+```C++
+	//Type cast, e.g. (float)n, (int)1.0
+	llvm::Value* TypeCast::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Ret = TypeCasting(this->_Operand->CodeGen(__Generator), this->_VarType->GetLLVMType(__Generator));
+		if (Ret == NULL) {
+			throw std::logic_error("Unable to do type casting.");
+			return NULL;
+		}
+		return Ret;
+	}
+```
+
+##### 3.6.3.5 Sizeof类
+
+`sizeof`运算符只能产生整数类型的右值，表示值或类型的内存大小。
+
+`sizeof`的实现可以调用`llvm::DataLayout::getTypeAllocSize`接口实现。
+
+由于`sizeof`的参数既可以是类型名也可以是单个变量，因此在语法分析阶段会产生冲突。例如
+
+```C++
+sizeof(a);	//What is "a"? A type name or a variable?
+```
+
+因此，当`sizeof`的参数只有一个Identifier的时候，我们直接保存这个Identifier的字符串，到语义分析阶段再去判断它是类型名还是变量名：
+
+```C++
+	//Operator sizeof() in C
+	llvm::Value* SizeOf::CodeGen(CodeGenerator& __Generator) {
+		if (this->_Arg1)//Expression
+			return IRBuilder.getInt64(__Generator.GetTypeSize(this->_Arg1->CodeGen(__Generator)->getType()));
+		else if (this->_Arg2)//VarType
+			return IRBuilder.getInt64(__Generator.GetTypeSize(this->_Arg2->GetLLVMType(__Generator)));
+		else {//Single identifier
+			llvm::Type* Type = __Generator.FindType(this->_Arg3);
+			if (Type) {
+				this->_Arg2 = new DefinedType(this->_Arg3);
+				return IRBuilder.getInt64(__Generator.GetTypeSize(Type));
+			}
+			llvm::Value* Var = __Generator.FindVariable(this->_Arg3);
+			if (Var) {
+				this->_Arg1 = new Variable(this->_Arg3);
+				return IRBuilder.getInt64(__Generator.GetTypeSize(Var->getType()->getNonOpaquePointerElementType()));
+			}
+			throw std::logic_error(this->_Arg3 + " is neither a type nor a variable.");
+			return NULL;
+		}
+	}
+```
+
+##### 3.6.3.6 PostfixInc类和PostfixDec类
+
+这两个类分别代表C语言中的后缀`++`和后缀`--`。后缀`++`和后缀`--` 的参数必须是可修改的左值，因此要递归调用`CodeGenPtr`来获得。但其运算结果是一个不可修改的右值：
+
+```C++
+	//Postfix increment, e.g. i++
+	llvm::Value* PostfixInc::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Postfix increment must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValuePlus = CreateAdd(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValuePlus, Operand);
+		return OpValue;
+	}
+	//Postfix decrement, e.g. i--
+	llvm::Value* PostfixDec::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Postfix decrement must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValueMinus = CreateSub(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValueMinus, Operand);
+		return OpValue;
+	}
+```
+
+##### 3.6.3.7 AddressOf类
+
+取地址运算`&`只能产生右值。由于我们在符号表中存储的就是指向变量的指针，因此查询符号表后，直接返回查询结果即可：
+
+```C++
+	//Fetch address, e.g. &i
+	llvm::Value* AddressOf::CodeGen(CodeGenerator& __Generator) {
+		return this->_Operand->CodeGenPtr(__Generator);
+	}
+```
+
+##### 3.6.3.8 其他
+
+其他运算符，诸如一元`+`, 一元`-`, 位运算`&`, `|`, `~`, `^`，逻辑运算`||`, `&&`, `!`, 比较运算`>`, `>=`, `<`, `<=`, `==`, `!=`, 算术运算`+`, `-`, `*`, `/`, `%`, 移位运算`<<`, `>>`, 都只能产生右值。
+
+他们的实现方式都比较简单，注意运算过程需要进行类型升级/类型转换，以及加减法需要支持**指针和整数**的运算。具体代码请参考工程文件。
+
+#### 3.6.4 左值
+
+对于左值，其实我们也只要实现`CodeGenPtr`方法。它们的`CodeGen`方法内，只需要先调用自己的`CodeGenPtr`方法，然后调用`IRBuilder.CreateLoad`接口即可。
+
+##### 3.6.4.1 Subscript类
+
+`Subscript`类表示数组下标。和C语言一样，`[]`运算不仅可以作用在数组上，也可以作用在指针上。
+
+作用在数组上时，调用`IRBuilder.CreateGEP`接口即可。作用在指针上时，需要对指针进行加法，然后直接返回加法后的指针（因为我们要返回“右值”）：
+
+```C++
+	//Subscript, e.g. a[10]
+	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
+		//Get the pointer pointing to the array
+		llvm::Value* ArrayPtr = this->_Array->CodeGen(__Generator);
+		if (!ArrayPtr) {
+			throw std::logic_error("Subscription must be used to a left-value.");
+			return NULL;
+		}
+		//Get the index value
+		llvm::Value* Subspt = this->_Index->CodeGen(__Generator);
+		if (!(Subspt->getType()->isIntegerTy())) {
+			throw std::logic_error("Subscription should be an integer.");
+			return NULL;
+		}
+		//If "ArrayPtr" points to an array, use CreateGEP.
+		//Otherwise, use pointer addition.
+		if (ArrayPtr->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
+			std::vector<llvm::Value*> Index;
+			Index.push_back(IRBuilder.getInt32(0));
+			Index.push_back(Subspt);
+			return IRBuilder.CreateGEP(
+				ArrayPtr->getType()->getNonOpaquePointerElementType(),
+				ArrayPtr,
+				Index
+			);
+		}
+		else {
+			return CreateAdd(ArrayPtr, Subspt, __Generator);
+		}
+	}
+```
+
+##### 3.6.4.2 StructDereference类和StructReference类
+
+C语言中，取结构体的元素是通过元素名进行的。但在LLVM中，是通过元素的下标序号进行的。这是因为LLVM的结构体的成员没有名字（上文已经介绍过）。
+
+因此，我们需要先从结构体映射表中找到对应的`AST::StructType*`实例，然后查询元素名对应的下标序号。然后调用`IRBuilder.CreateGEP`接口：
+
+```C++
+	//Structure reference, e.g. a.x, a.y
+	llvm::Value* StructReference::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* StructReference::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* StructPtr = this->_Struct->CodeGenPtr(__Generator);
+		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
+			throw std::logic_error("Struct reference operator \".\" must be apply to struct pointers.");
+			return NULL;
+		}
+		//Since C language uses name instead of index to fetch the element inside a struct,
+		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		int MemIndex = StructType->GetElementIndex(this->_MemName);
+		if (MemIndex == -1) {
+			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+			return NULL;
+		}
+		std::vector<llvm::Value*> Indices;
+		Indices.push_back(IRBuilder.getInt32(0));
+		Indices.push_back(IRBuilder.getInt32(MemIndex));
+		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+	}
+
+	//Structure dereference, e.g. a->x, a->y
+	llvm::Value* StructDereference::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		//For array types, just return its pointer directly
+		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return LValue;
+		else
+			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* StructDereference::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* StructPtr = this->_StructPtr->CodeGen(__Generator);
+		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
+			throw std::logic_error("Struct dereference operator \"->\" must be apply to struct pointers.");
+			return NULL;
+		}
+		//Since C language uses name instead of index to fetch the element inside a struct,
+		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		int MemIndex = StructType->GetElementIndex(this->_MemName);
+		if (MemIndex == -1) {
+			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+			return NULL;
+		}
+		std::vector<llvm::Value*> Indices;
+		Indices.push_back(IRBuilder.getInt32(0));
+		Indices.push_back(IRBuilder.getInt32(MemIndex));
+		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+	}
+```
+
+##### 3.6.4.3 Indirection类
+
+`Indirection`类表示访问指针对象指向的内存。例如`*ptr`。它返回的也是左值。
+
+```C++
+//Indirection, e.g. *ptr
+llvm::Value* Indirection::CodeGen(CodeGenerator& __Generator) {
+	llvm::Value* LValue = this->CodeGenPtr(__Generator);
+	//For array types, firstly, get its first element's pointer
+	if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
+		std::vector<llvm::Value*> Index(2, IRBuilder.getInt32(0));
+		llvm::Value* ElePtr = IRBuilder.CreateGEP(
+			LValue->getType()->getNonOpaquePointerElementType(),
+			LValue,
+			Index
+		);
+		//If the element is still an array, return its pointer.
+		//Otherwise, create load instruction.
+		if (ElePtr->getType()->getNonOpaquePointerElementType()->isArrayTy())
+			return ElePtr;
+		else IRBuilder.CreateLoad(ElePtr->getType()->getNonOpaquePointerElementType(), ElePtr);
+	}
+	//Otherwise, create load.
+	else
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+}
+llvm::Value* Indirection::CodeGenPtr(CodeGenerator& __Generator) {
+	llvm::Value* Ptr = this->_Operand->CodeGenPtr(__Generator);
+	//If Ptr points to an array, return its first element's pointer
+	if (Ptr->getType()->getNonOpaquePointerElementType()->isArrayTy())
+		return IRBuilder.CreateGEP(
+			Ptr->getType()->getNonOpaquePointerElementType(),
+			Ptr,
+			std::vector<llvm::Value*>(2, IRBuilder.getInt32(0))
+		);
+	//Otherwise, return the element pointed by Ptr. This element must be a pointer type. 
+	else {
+		llvm::Value* Ele = IRBuilder.CreateLoad(Ptr->getType()->getNonOpaquePointerElementType(), Ptr);
+		if (!Ele->getType()->isPointerTy()) {
+			throw std::logic_error("Address operator \"&\" only applies on pointers or arrays.");
+			return NULL;
+		}
+		return Ele;
+	}
+}
+```
+
+##### 3.6.4.4 PrefixInc类和PrefixDec类
+
+C语言的前缀`++`和前缀`--`也是返回左值。他们的参数也必须是可修改的左值。对参数进行递增/递减后，返回指向参数的指针：
+
+```C++
+	//Prefix increment, e.g. ++i
+	llvm::Value* PrefixInc::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* PrefixInc::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Prefix increment must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValuePlus = CreateAdd(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValuePlus, Operand);
+		return Operand;
+	}
+	//Prefix decrement, e.g. --i
+	llvm::Value* PrefixDec::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* PrefixDec::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
+		llvm::Value* OpValue = IRBuilder.CreateLoad(Operand->getType()->getNonOpaquePointerElementType(), Operand);
+		if (!(
+			OpValue->getType()->isIntegerTy() ||
+			OpValue->getType()->isFloatingPointTy() ||
+			OpValue->getType()->isPointerTy())
+			)
+			throw std::logic_error("Prefix decrement must be applied to integers, floating-point numbers or pointers.");
+		llvm::Value* OpValueMinus = CreateSub(OpValue, IRBuilder.getInt1(1), __Generator);
+		IRBuilder.CreateStore(OpValueMinus, Operand);
+		return Operand;
+	}
+```
+
+##### 3.6.4.5 DirectAssign类及其他特殊赋值语句
+
+和C语言一样，除了直接赋值语句`=`外，我们的编译器也支持其他的特殊赋值语句：`+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `|=`, `&=`, `^=`。
+
+需要注意的是，赋值语句返回的都是可修改的左值。例如
+
+```C++
+((a = 1) += 2) /= 3;
+```
+
+是合法的。
+
+赋值语句的左操作数必须是可修改的左值，调用`CodeGenPtr`获得。右操作数作为右值使用，调用`CodeGen`获得。然后调用`IRBuilder.CreateLoad`接口。下面仅展示直接赋值语句的代码（其他赋值语句的实现请直接参考工程代码文件）：
+
+```C++
+	//DirectAssign, e.g. x=y
+	llvm::Value* DirectAssign::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* LValue = this->CodeGenPtr(__Generator);
+		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+	}
+	llvm::Value* DirectAssign::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
+		llvm::Value* RHS = this->_RHS->CodeGen(__Generator);
+		return CreateAssignment(LHS, RHS, __Generator);
+	}
+```
+
+#### 3.6.5 特殊
+
+下面两种表达式无法确定其能否作为左值，需要视具体情况而定。
+
+##### 3.6.5.1 ThernaryCondition类
+
+三元运算符`?:`的运算结果能作为左值，当且仅当**其后两个操作数都是左值，且类型一致**。例如：
+
+```C++
+int a, b; float c, d; bool t;
+(t ? a : 1);		//Right value
+(t ? a : b);		//Left value
+(t ? b : c);		//Right value
+(t ? a : (float)b);	//Right value
+```
+
+因此，在`CodeGenPtr`中，我们需要对两个参数进行相应的判断，如果不符合条件，就抛出异常。而`CodeGen`产生右值则不需要这么苛刻的条件：
+
+```C++
+	//TernaryCondition, e.g. (cond)?x:y
+	llvm::Value* TernaryCondition::CodeGen(CodeGenerator& __Generator) {
+		llvm::Value* Condition = Cast2I1(this->_Condition->CodeGen(__Generator));
+		if (Condition == NULL) {
+			throw std::logic_error("The first operand of thernary operand \" ? : \" must be able to be cast to boolean.");
+			return NULL;
+		}
+		llvm::Value* True = this->_Then->CodeGen(__Generator);
+		llvm::Value* False = this->_Else->CodeGen(__Generator);
+		if (True->getType() == False->getType() || TypeUpgrading(True, False)) {
+			return IRBuilder.CreateSelect(Condition, True, False);
+		}
+		else {
+			throw std::domain_error("Thernary operand \" ? : \" using unsupported type combination.");
+			return NULL;
+		}
+	}
+	llvm::Value* TernaryCondition::CodeGenPtr(CodeGenerator& __Generator) {
+		llvm::Value* Condition = Cast2I1(this->_Condition->CodeGen(__Generator));
+		if (Condition == NULL) {
+			throw std::logic_error("The first operand of thernary operand \" ? : \" must be able to be cast to boolean.");
+			return NULL;
+		}
+		llvm::Value* True = this->_Then->CodeGenPtr(__Generator);
+		llvm::Value* False = this->_Else->CodeGenPtr(__Generator);
+		if (True->getType() != False->getType()) {
+			throw std::domain_error("When using thernary expressions \" ? : \" as left-values, the latter two operands must be of the same type.");
+			return NULL;
+		}
+		return IRBuilder.CreateSelect(Condition, True, False);
+	}
+```
+
+##### 3.6.5.2 CommaExpr类
+
+逗号运算符`,`的运算结果能否作为左值，取决于逗号表达式的最后一个子表达式：
+
+```C++
+int a, b; float c, d;
+1, 2, d, 4, a;			//Left value
+1, 2, a, c, 5;			//Right value
+a, b, c, a, (double)d;	//Right value
+```
+
+因此，其代码实现如下：
+
+```C++
+	//Comma expression, e.g. a,b,c,1
+	llvm::Value* CommaExpr::CodeGen(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGen(__Generator);
+	}
+	llvm::Value* CommaExpr::CodeGenPtr(CodeGenerator& __Generator) {
+		this->_LHS->CodeGen(__Generator);
+		return this->_RHS->CodeGenPtr(__Generator);
+	}
+```
 
 ## 四、优化考虑
 
+我们的编译器支持`-O0`, `-O1`, `-O2`, `-O3`, `-Os`, `-Oz`优化选项。
 
+LLVM中有多种优化类型，有`FunctionPass`对每个函数体进行单独优化，也有`ModulePass`会对整个代码模块进行优化（例如，它会把没有用到的内部链接的函数删除）。我们这里直接使用`ModulePass`对整个模块进行优化。
+
+```C++
+//Create the analysis managers.
+llvm::LoopAnalysisManager LAM;
+llvm::FunctionAnalysisManager FAM;
+llvm::CGSCCAnalysisManager CGAM;
+llvm::ModuleAnalysisManager MAM;
+//Create the new pass manager builder.
+llvm::PassBuilder PB;
+//Register all the basic analyses with the managers.
+PB.registerModuleAnalyses(MAM);
+PB.registerCGSCCAnalyses(CGAM);
+PB.registerFunctionAnalyses(FAM);
+PB.registerLoopAnalyses(LAM);
+PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+//Create the pass manager.
+const llvm::OptimizationLevel* OptLevel;
+if (OptimizeLevel == "O0")
+	OptLevel = &llvm::OptimizationLevel::O0;
+else if (OptimizeLevel == "O1")
+			OptLevel = &llvm::OptimizationLevel::O1;
+else if (OptimizeLevel == "O2")
+			OptLevel = &llvm::OptimizationLevel::O2;
+else if (OptimizeLevel == "O3")
+			OptLevel = &llvm::OptimizationLevel::O3;
+else if (OptimizeLevel == "Os")
+	OptLevel = &llvm::OptimizationLevel::Os;
+else if (OptimizeLevel == "Oz")
+	OptLevel = &llvm::OptimizationLevel::Oz;
+else
+	OptLevel = &llvm::OptimizationLevel::O0;
+llvm::ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(*OptLevel);
+//Optimize the IR
+MPM.run(*this->Module, MAM);
+```
 
 ## 五、代码生成
 
+首先实例化`llvm::sys::getDefaultTargetTriple`，该对象包含了目标机器的许多参数。然后我们调用`llvm::TargetMachine`的接口即可把LLVM中间代码编译成目标机器的汇编代码。具体请参考LLVM官方文档。
 
+```C++
+//Generate object code
+void CodeGenerator::GenObjectCode(std::string FileName) {
+	auto TargetTriple = llvm::sys::getDefaultTargetTriple();
+	llvm::InitializeAllTargetInfos();
+	llvm::InitializeAllTargets();
+	llvm::InitializeAllTargetMCs();
+	llvm::InitializeAllAsmParsers();
+	llvm::InitializeAllAsmPrinters();
+	std::string Error;
+	auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
+	if (!Target) {
+		throw std::runtime_error(Error);
+		return;
+	}
+	auto CPU = "generic";
+	auto Features = "";
+	llvm::TargetOptions opt;
+	auto RM = llvm::Optional<llvm::Reloc::Model>();
+	auto TargetMachine = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+	Module->setDataLayout(TargetMachine->createDataLayout());
+	Module->setTargetTriple(TargetTriple);
+	std::error_code EC;
+	llvm::raw_fd_ostream Dest(FileName, EC, llvm::sys::fs::OF_None);
+	if (EC) {
+		throw std::runtime_error("Could not open file: " + EC.message());
+		return;
+	}
+	auto FileType = llvm::CGFT_ObjectFile;
+	llvm::legacy::PassManager PM;
+	if (TargetMachine->addPassesToEmitFile(PM, Dest, nullptr, FileType)) {
+		throw std::runtime_error("TargetMachine can't emit a file of this type");
+		return;
+	}
+	PM.run(*Module);
+	Dest.flush();
+}
+```
 
 ## 六、测试案例
