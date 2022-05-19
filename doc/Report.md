@@ -78,11 +78,530 @@
 
 ## 一、词法分析
 
+编译器的词法分析（lexical analysis）阶段可将源程序读作字符文件并将其分为若干个记号。典型的记号有：关键词（key word），例如`if`和`while`，它们是字母的固定串；标识符（identifier）是由用户定义的串，它们通常由字母和数字组成并由一个字母开头；特殊符号（special symbol）如算数符号`+`和`*`、一些多字符符号，如`>=`和`<>`。
 
+### 1.1 正则表达式
+
+Lex是一个词法分析程序生成器，其输入为包含了正则表达式的`.l`文件和每个表达式被匹配时采取的动作。其中正则表达式的Lex约定如下：
+
+| 格式  | 含义                           |
+| ----- | ------------------------------ |
+| a     | 字符a                          |
+| "a"   | 即使a是一个元字符，它仍是字符a |
+| \a    | 即使a是一个元字符，它仍是字符a |
+| a*    | a的零次或多次重复              |
+| a+    | a的一次或多次重复              |
+| a?    | 一个可选的a                    |
+| a\|b  | a或b                           |
+| (a)   | a本身                          |
+| [abc] | 字符a、b或c中的任一个          |
+| [a-d] | 字符a、b、c或d中的任一个       |
+| [^ab] | 除了a或b外的任一个字符         |
+| .     | 除了新行之外的任一个字符       |
+| {xxx} | 名字xxx表示的正则表达式        |
+
+### 1.2 Lex具体实现
+
+Lex输入文件由三个部分组成：定义（defination）集，规则（rule）集以及辅助程序（auxiliary）集或用户程序（user routine）集。
+
+```apl
+{definations}
+%%
+{rules}
+%%
+{auxiliary routines}
+```
+
+#### 1.2.1 定义部分
+
+定义部分包括了必须插到第一部分`%{`和`%}`之间的C代码，包括头文件定义和逃逸字符返回函数（逃逸字符的匹配在规则部分）
+
+```c
+%{
+#include "AST.hpp"
+#include "Parser.hpp"
+#include <stdio.h>
+#include <string>
+#include <iostream>
+extern "C" int yywrap() {return 1;}
+
+char Escape2Char(char ch){
+	switch(ch){
+	case 'a': return '\a';
+	case 'b': return '\b';
+	case 'f': return '\f';
+	case 'n': return '\n';
+	case 'r': return '\r';
+	case 't': return '\t';
+	case 'v': return '\v';
+	case '\\': return '\\';
+	case '\'': return '\'';
+	case '\"': return '\"';
+	default:
+		if ('0'<=ch && ch<='9')
+			return (char)(ch-'0');
+		else
+			return ch;
+	}
+}
+%}
+```
+
+#### 1.2.2 规则部分
+
+* 匹配关键字、运算符和界符时，只需要用固定字符的正则表达式匹配。
+
+```c
+","														{return COMMA;}
+"..."													{return ELLIPSES;}
+"."														{return DOT;}
+";"														{return SEMI;}
+...
+"/"														{return DIV;}
+"%="													{return MODEQ;}
+"%"														{return MOD;}
+"?"														{return QUES;}
+":"														{return COLON;}
+
+"struct"												{return STRUCT;}
+"typedef"												{return TYPEDEF;}
+"const"													{return CONST;}
+...
+"long"													{return LONG; }
+"char"													{return CHAR; }
+"float"													{return FLOAT; }
+"double"												{return DOUBLE; }
+"void"													{return VOID; }
+```
+
+* 匹配注释、变量值等时需要用到非固定字符串的正则匹配。需要额外保存值的表达式用到的函数包括：
+
+  * `yytext`：返回子串
+  * `yyleng`：返回子串长度
+  * `yylval`：创建相关类型的储值空间
+
+  Lex输出总是首先将可能的最长子串与规则相匹配。如果某个子串可与两个或更多的规则匹配，则Lex的输出将找出列在行为部分的第一个规则。例如匹配浮点数应放在匹配整数之前。
+
+```c
+[ \t\n]													{ ; }
+"/*"[^*]*[*]+([^*/][^*]*[*]+)*"/"						{ ; }
+"//".*													{ ; }
+"\'"\\."\'"												{ 
+															yylval.cVal = Escape2Char(yytext[2]);
+															return CHARACTER; 
+														}
+"\'"[^\\']"\'"											{ 
+															yylval.cVal = yytext[1];
+															return CHARACTER; 
+														}
+"\'"													{return SQUOTE; }
+"\""(\\.|[^"\\])*"\""									{
+															yylval.strVal = new std::string("");
+															for (int i = 1; i <= yyleng-2; i++)
+																if (yytext[i] == '\\'){
+																	i++;
+																	yylval.strVal->push_back(Escape2Char(yytext[i]));
+																}else{
+																	yylval.strVal->push_back(yytext[i]);
+																}
+															return STRING;
+														}
+"\""													{return DQUOTE;}
+[a-zA-Z_][a-zA-Z0-9_]*									{ 
+															yylval.sVal = new std::string(yytext, yyleng);
+															return IDENTIFIER; 
+														} 
+[0-9]+\.[0-9]+											{ 
+															double dtmp;
+															sscanf(yytext, "%lf", &dtmp);
+															yylval.dVal = dtmp;
+															return REAL; 
+														}
+[0-9]+													{
+															int itmp;
+															sscanf(yytext, "%d", &itmp);
+															yylval.iVal = itmp; 
+															return INTEGER; 
+														}
+%%
+```
 
 ## 二、语法分析
 
+语法分析程序从扫描程序中获取记号形式的源代码，并完成定义程序结构的语法分析，这与自然语言中句子的语法分析类似。语法分析定义了程序的结构元素及其关系。语法分析的结果表示为抽象语法树（Abstract Syntax Tree）。
 
+### 2.1 支持语法
+
+我们的CFG语法支持如序言所提的C语言特性，但是部分语法有所区别：
+
+* 不支持宏定义。不支持`#include`和`#define`等宏定义。若要使用`printf`等函数，需要先声明再直接使用：
+
+  ```c
+  /*This is an example that prints "Hello World!"*/
+  int printf(char ptr, ...);
+  int main(void){
+  	printf("Hello World!\n");
+  	return 0;
+  }
+  ```
+
+* 所有代码应在一个源文件中
+
+* 指针类型应该用`ptr`进行声明。这与C语言用`*`来声明不同，因为我们的语法分析程序不能区分`a*b`是”a乘以b“还是"a类型的指针变量b"。
+
+  ```c
+  typedef int a;	//"a" is an alias for type "int"
+  float a;		//"a" is a variable of type "float"
+  a * b;			//What does this mean? Expression "a * b" or declaration "int* b"?
+  ```
+
+  我们的语言中，指针变量应如下定义:
+
+  ```c
+  //In C language, the type of both p and q is "int ptr"
+  int * p, * q;	//Illegal in our language.
+  
+  //In our language, the type of both p and q is "int ptr"
+  int ptr p, q;	//Legal.
+  ```
+
+* 只有单个变量名的声明会导致规约-规约冲突
+
+  ```c
+  typedef int a;	//"a" is an alias for type "int"
+  float a;		//"a" is a variable of type "float"
+  a;				//What does this mean? An expression or an empty declaration "int;"?
+  ```
+
+  因此，我们把只有单个变量名的声明默认为空的变量声明而不是表达式：
+
+  ```c
+  typedef int a;	//"a" is an alias for type "int"
+  float a;		//"a" is a variable of type "float"
+  a;				//OK. This is an empty declaration equivalent to "int;"
+  ```
+
+* 为了简化数组语法，在我们的语言中，数组应照如下定义：
+
+  ```c
+  int ptr array(20) a;	//an array of integer pointers
+  int array(20) ptr a;	//an integer array pointer
+  int ptr array(5) array(5) a;		//a 2D array of integer pointers
+  int array(5) ptr array(5) b;		//a 1D array of 1D integer array pointers
+  int array(5) array(5) ptr c;		//a 2D integer array pointer
+  struct {int x, y;} ptr array(10) d;	//a 1D array of struct pointers
+  ```
+
+  这样语法分析器就可以分开处理变量声明的类型和变量名称。
+
+* 不支持复杂变量类型在定义时就初始化。例如：
+
+  ```c
+  struct {double array(3) norm; double curve;} array(2) array(2) a
+      = {{{{1,2,3}, 4}, {{5,6,7}, 8}}, {{{1,2,3}, 4}, {{5,6,7}, 8}}};
+  ```
+
+  为了支持上述语法，编译器需要做很多工作判断该语法是否合法。因此我们仅支持简单类型变量的初始化。若编程者要初始化复杂类型变量，需要使用循环语句。
+
+  ```c
+  int a = 1;									//Legal
+  double r = 5;								//Legal, integer 5 will be cast to double
+  int array(2) array(2) b;					//Legal
+  int array(2) array(2) c = {{1,2}, {3,4}};	//Illegal
+  int array(2) d = {1,2};						//Illegal
+  int array(2) e = 1;							//Illegal
+  struct {int x, y;} p = {1, 2};				//Illegal
+  ```
+
+* 我们的语言定义表达式是一种特殊的语句。表达式有返回值，但语句不一定有返回值。在期待输入表达式的地方，不能输入变量声明，因为变量声明是语句而非表达式。
+
+  例如，`for`语句需要的表达式和语句如下：
+
+  ```c
+  for (statement; expression; expression) statement;
+  ```
+
+  一些合法和非法的`for`语句：
+
+  ```c
+  for (int i = 0; i < n; i++) sum += i;	//Legal
+  
+  int i; for (i = 0; foo1(i); foo2(i)) foo3(i);	//Legal
+  
+  for (int i = 0; int j = i; i++);		//"int j = i" is illegal, because it is not an expression
+  
+  for (int i = 0; i < n; int j = i++);	//"int j = i++" is illegal, because it is not an expression
+  
+  for (int i = 0; i < n; i++){			//Legal
+      int i = 10;	//Legal. We allow redefining variables in the loop body
+  };
+  ```
+
+* 和C一样，我们也有变量类型等价。但是如下的代码不能编译（这和C语言的特性是一样的）：
+
+  ```c
+  struct {int x, y;} test(void){
+  	struct {int x, y;} a;
+  	struct {int x, y;} b;
+  	a = b;		//Error
+  	return a;	//Error
+  }
+  ```
+
+  应该先使用`typedef`定义结构类型，然后再用这个被定义过的结构类型去定义变量：
+
+  ```c
+  typedef struct {int x, y;} PointTy;
+  PointTy test(void){
+  	PointTy a;
+  	PointTy b;
+  	a = b;		//OK
+  	return a;	//OK
+  }
+  ```
+
+  递归的结构定义必须使用`typedef`：
+
+  ```c
+  typedef struct {
+  	int Value;
+  	Node ptr Next;
+  } Node;
+  ```
+
+* C语言中数组的处理十分复杂。例如下面：
+
+  ```c
+  void foo1(void) {
+  	int a[2];
+  	a[0] = 1;
+  	// %1 = getelementptr inbounds [2 x i32], [2 x i32]* %0, i32 0, i32 0
+  	// store i32 1, i32* %1
+  }
+  void foo2(int a[]) {
+  	a[0] = 1;
+  	// store i32* %0, i32** %3, align 8
+  	// %4 = load i32*, i32** %3, align 8
+  	// %5 = getelementptr inbounds i32, i32* %4, i64 0
+  	// store i32 1, i32* %5, align 4
+  }
+  ```
+
+  尽管在两个函数中`a`都是数组，但它们的中间代码完全不同。在第一个例子中，`a`是一个本地定义的数组；在第二个例子中，`a`是参数，因此`a`是`int*`类型的。
+
+  为了简化，我们规定作为函数参数传入的`int array(n)`也作为`int array(n) ptr`类型而不是`int *`，函数内部把其当作本地定义的数组。其中和C标准一致的是，修改`a[0]`不会修改本地栈而是传入的数组。
+
+### 2.2 Yacc
+
+我们使用Yacc作为我们的分析程序生成器，其输入是一个说明文件（`.y`后缀），并产生一个由分析程序的C源代码组成的输出文件，格式为：
+
+```apl
+{definations}
+%%
+{rules}
+%%
+{auxiliary routines}
+```
+
+#### 2.2.1 定义部分
+
+定义部分定义了CFG语法中`non-terminal`的类型、`terminal`的TOKEN和运算符的优先级。定义优先级时，`%left`，`%right`和`%nonassoc`定义结合性，越后定义的运算优先级高。
+
+```c++
+%nonassoc IF
+%nonassoc ELSE
+%left	COMMA //15
+%left	FUNC_CALL_ARG_LIST
+%right	ASSIGN ADDEQ SUBEQ MULEQ DIVEQ MODEQ SHLEQ SHREQ BANDEQ BOREQ BXOREQ //14
+%right	QUES COLON //13
+%left	OR//12
+%left	AND//11
+%left	BOR//10
+%left	BXOR//9
+%left	BAND//8
+%left	EQ NEQ//7
+%left	GE GT LE LT//6
+%left	SHL SHR//5
+%left	ADD SUB//4
+%left	MUL DIV MOD//3
+%right	DADD DSUB NOT BNOT SIZEOF//2
+%left	DOT ARW//1
+```
+
+#### 2.2.2 规则部分
+
+每一条规约左边为规则，花括号内为C语言操作。`$$`为规约后压入栈的值，`$1`，...，`$n`为规约前栈中的值。如下为范例：
+
+```yacas
+Program:	Decls												{  $$ = new AST::Program($1); Root = $$;   }
+			;
+			
+Decls:		Decls Decl											{  $$ = $1; $$->push_back($2);   }
+			|													{  $$ = new AST::Decls();   }
+			;
+... ...
+```
+
+规则部分也可定义优先级，例如`+`既可以表示右结合的正号，也可以表示为左结合的加号。这在定义区无法定义完全，需要用`%prec`定义：
+
+```yacas
+Expr:		Expr LBRACKET Expr RBRACKET %prec ARW				{  $$ = new AST::Subscript($1,$3);   }  
+			| ADD Expr	%prec NOT								{  $$ = new AST::UnaryPlus($2);   }
+			| SUB Expr	%prec NOT								{  $$ = new AST::UnaryMinus($2);   }
+			| LPAREN VarType RPAREN Expr %prec NOT				{  $$ = new AST::TypeCast($2,$4);   }
+			| DADD Expr	%prec NOT								{  $$ = new AST::PrefixInc($2);   }
+			| Expr DADD %prec ARW								{  $$ = new AST::PostfixInc($1);   }
+			| DSUB Expr %prec NOT								{  $$ = new AST::PrefixDec($2);   }
+			| Expr DSUB	%prec ARW								{  $$ = new AST::PostfixDec($1);   }
+			| MUL Expr	%prec NOT								{  $$ = new AST::Indirection($2);   }
+```
+
+### 2.3 抽象语法树
+
+语法分析程序的输出是抽象语法树，即称作抽象语法的快速计数法的树形表示。抽象语法树的每一个节点表示一种类型，我们定义的类型之间的继承关系如下：
+
+![image-20220518095344348](./images/ast.png)
+
+#### 2.3.1 Node类
+
+Node类是抽象语法树每个节点的纯虚类型，包括空的构造、析构函数和纯虚函数`CodeGen`
+
+```c++
+class Node {
+	public:
+		Node(void) {}
+		~Node(void) {}
+		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+};
+```
+
+#### 2.3.2 Program类
+
+Program类是抽象语法树的根节点，一个程序由若干个声明组成。
+
+```c++
+class Program : public Node {
+	public:
+		Decls* _Decls;
+
+		Program(Decls* _Decls) :_Decls(_Decls) {}
+		~Program(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+};
+```
+
+#### 2.3.3 Decl类
+
+Decl类也是纯虚类型，包括函数、变量和类型的声明（定义）四个子类。
+
+函数声明字段包括返回类型，函数名，参数列表和函数体（子类代码示例都省略了构造、析构和`CodeGen`函数）：
+
+```c++
+//Function declaration
+	class FuncDecl : public Decl {
+	public:
+		//The return type of the function
+		VarType* _RetType;
+		//Its name
+		std::string _Name;
+		//The argument list of the function
+		ArgList* _ArgList;
+		//The function body (its implementation)
+		//If no block is provided, FuncBody is set to be NULL,
+		//meaning that this is just a function prototype declaration.
+		FuncBody* _FuncBody;
+	};
+```
+
+变量声明包括了变量类型和变量列表：
+
+```c++
+//Variable declaration
+	class VarDecl : public Decl {
+	public:
+		//The variable type
+		VarType* _VarType;
+		//The variable list
+		VarList* _VarList;
+
+		VarDecl(VarType* __VarType, VarList* __VarList) :
+			_VarType(__VarType), _VarList(__VarList) {}
+		~VarDecl(void) {}
+		llvm::Value* CodeGen(CodeGenerator& __Generator);
+	};
+```
+
+类型声明字段包括了变量类型和变量名：
+
+```c++
+//Type declaration
+	class TypeDecl : public Decl {
+	public:
+		//Variable type
+		VarType* _VarType;
+		//Its alias
+		std::string _Alias;
+	};
+```
+
+#### 2.3.4 VarType类
+
+VarType类即变量类型类，包括字段常量类型`_isConst`和虚字段内置类型`isBuiltInType`、定义类型`isDefinedType`、指针类型`isPointerType`、数组类型`isArrayType`、结构类型`isStructType`、枚举类型`isEnumType`。
+
+```c++
+//Base class for variable type
+	class VarType : public Node {
+	public:
+		//Whether this type is const
+		bool _isConst;
+		//Its LLVM type. It is initialized as NULL, and generated by function GetLLVMType.
+		llvm::Type* _LLVMType;
+
+		VarType(void) : _isConst(false), _LLVMType(NULL) {}
+		~VarType(void) {}
+		//Set this variable type to be constant.
+		void SetConst(void) {
+			this->_isConst = true;
+		}
+		//Return the corresponding instance of llvm::Type*.
+		//Meanwhile, it will update _LLVMType.
+		virtual llvm::Type* GetLLVMType(CodeGenerator& __Generator) = 0;
+		//VarType class don't need an actual CodeGen function
+		llvm::Value* CodeGen(CodeGenerator& __Generator) { return NULL; }
+		//Determine class type
+		virtual bool isBuiltInType(void) = 0;
+		virtual bool isDefinedType(void) = 0;
+		virtual bool isPointerType(void) = 0;
+		virtual bool isArrayType(void) = 0;
+		virtual bool isStructType(void) = 0;
+		virtual bool isEnumType(void) = 0;
+	};
+```
+
+#### 2.3.5 Stmt类
+
+Stmt类即语句类，也是纯虚类型，包括条件语句、循环语句、选择语句等子类。
+
+#### 2.3.6 Expr类
+
+Expr的语义是表达式类，即有值的返回结构。我们定义的表达式包括常量表达式、变量表达式和操作符表达式等。
+
+```c++
+//Pure virtual class for expression
+	class Expr : public Stmt {
+	public:
+		Expr(void) {}
+		~Expr(void) {}
+		//This function is used to get the "value" of the expression.
+		virtual llvm::Value* CodeGen(CodeGenerator& __Generator) = 0;
+		//This function is used to get the "pointer" of the instance.
+		//It is used to implement the "left value" in C language,
+		//e.g., the LHS of the assignment.
+		virtual llvm::Value* CodeGenPtr(CodeGenerator& __Generator) = 0;
+	};
+```
+
+### 2.4 抽象语法树可视化
 
 ## 三、语义分析
 
