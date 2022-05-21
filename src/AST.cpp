@@ -35,9 +35,9 @@ namespace AST {
 			if (LLVMType->isVoidTy())
 				ContainVoidTy = true;
 			//In C, when the function argument type is an array type, we don't pass the entire array.
-			//Instead, we just pass a pointer pointing to the array.
+			//Instead, we just pass a pointer pointing to its elements
 			if (LLVMType->isArrayTy())
-				LLVMType = LLVMType->getPointerTo();
+				LLVMType = LLVMType->getArrayElementType()->getPointerTo();
 			ArgTypes.push_back(LLVMType);
 		}
 		//Throw an exception if #args >= 2 and the function has a "void" argument.
@@ -58,6 +58,7 @@ namespace AST {
 		llvm::FunctionType* FuncType = llvm::FunctionType::get(RetTy, ArgTypes, this->_ArgList->_VarArg);
 		//Create function
 		llvm::Function* Func = llvm::Function::Create(FuncType, llvm::GlobalValue::ExternalLinkage, this->_Name, __Generator.Module);
+		__Generator.AddFunction(this->_Name, Func);
 		//If the function name conflictes, there was already something with the same name.
 		//If it already has a body, don't allow redefinition.
 		if (Func->getName() != this->_Name) {
@@ -82,32 +83,23 @@ namespace AST {
 			llvm::BasicBlock* FuncBlock = llvm::BasicBlock::Create(Context, "entry", Func);
 			IRBuilder.SetInsertPoint(FuncBlock);
 			//Create allocated space for arguments.
-			__Generator.PushVariableTable();	//This variable table is only used to store the arguments of the function
+			__Generator.PushSymbolTable();	//This variable table is only used to store the arguments of the function
 			size_t Index = 0;
 			for (auto ArgIter = Func->arg_begin(); ArgIter < Func->arg_end(); ArgIter++, Index++) {
-				//If the argument is an array, just use its pointer.
-				//Otherwise, create an alloca.
-				if (this->_ArgList->at(Index)->_VarType->GetLLVMType(__Generator)->isArrayTy()) {
-					__Generator.AddVariable(this->_ArgList->at(Index)->_Name, ArgIter);
-				}
-				else {
-					//Create alloca
-					auto Alloc = CreateEntryBlockAlloca(Func, this->_ArgList->at(Index)->_Name, ArgTypes[Index]);
-					//Assign the value by "store" instruction
-					IRBuilder.CreateStore(ArgIter, Alloc);
-					//Add to the symbol table
-					__Generator.AddVariable(this->_ArgList->at(Index)->_Name, Alloc);
-				}
+				//Create alloca
+				auto Alloc = CreateEntryBlockAlloca(Func, this->_ArgList->at(Index)->_Name, ArgTypes[Index]);
+				//Assign the value by "store" instruction
+				IRBuilder.CreateStore(ArgIter, Alloc);
+				//Add to the symbol table
+				__Generator.AddVariable(this->_ArgList->at(Index)->_Name, Alloc);
 			}
 			//Generate code of the function body
 			__Generator.EnterFunction(Func);
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_FuncBody->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 			__Generator.LeaveFunction();
-			__Generator.PopVariableTable();	//We need to pop out an extra variable table.
+			__Generator.PopSymbolTable();	//We need to pop out an extra variable table.
 		}
 		return NULL;
 	}
@@ -221,9 +213,11 @@ namespace AST {
 		//Add an item to the current typedef symbol table
 		//If an old value exists (i.e., conflict), raise an error
 		llvm::Type* LLVMType;
+		//For struct or union types, firstly we just need to get an opaque struct type
 		if (this->_VarType->isStructType())
-			//For struct types, firstly we just need to get an opaque struct type
 			LLVMType = ((AST::StructType*)this->_VarType)->GenerateLLVMTypeHead(__Generator, this->_Alias);
+		else if (this->_VarType->isUnionType())
+			LLVMType = ((AST::UnionType*)this->_VarType)->GenerateLLVMTypeHead(__Generator, this->_Alias);
 		else
 			LLVMType = this->_VarType->GetLLVMType(__Generator);
 		if (!LLVMType) {
@@ -232,12 +226,14 @@ namespace AST {
 		}
 		if (!__Generator.AddType(this->_Alias, LLVMType))
 			throw std::logic_error("Redefinition of typename " + this->_Alias);
-		//For struct types, we need to generate its body
+		//For struct or union types, we need to generate its body
 		if (this->_VarType->isStructType())
 			((AST::StructType*)this->_VarType)->GenerateLLVMTypeBody(__Generator);
+		else if (this->_VarType->isUnionType())
+			((AST::UnionType*)this->_VarType)->GenerateLLVMTypeBody(__Generator);
 		return NULL;
 	}
-
+	
 	//Built-in type
 	llvm::Type* BuiltInType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
@@ -294,11 +290,11 @@ namespace AST {
 			return this->_LLVMType;
 		//Create an anonymous identified struct type
 		this->GenerateLLVMTypeHead(__Generator);
-		return this->_LLVMType = this->GenerateLLVMTypeBody(__Generator);
+		return this->GenerateLLVMTypeBody(__Generator);
 	}
 	llvm::Type* StructType::GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name) {
 		//Firstly, generate an empty identified struct type
-		auto LLVMType = llvm::StructType::create(Context, __Name);
+		auto LLVMType = llvm::StructType::create(Context, "struct." + __Name);
 		//Add to the struct table
 		__Generator.AddStructType(LLVMType, this);
 		return this->_LLVMType = LLVMType;
@@ -326,6 +322,47 @@ namespace AST {
 		return -1;
 	}
 
+	//Union type.
+	llvm::Type* UnionType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return this->_LLVMType;
+		//Create an anonymous identified struct type
+		this->GenerateLLVMTypeHead(__Generator);
+		return this->GenerateLLVMTypeBody(__Generator);
+	}
+	llvm::Type* UnionType::GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name) {
+		//Firstly, generate an empty identified struct type
+		auto LLVMType = llvm::StructType::create(Context, "union." + __Name);
+		//Add to the union table
+		__Generator.AddUnionType(LLVMType, this);
+		return this->_LLVMType = LLVMType;
+	}
+	llvm::Type* UnionType::GenerateLLVMTypeBody(CodeGenerator& __Generator) {
+		//Secondly, generate its body
+		if (this->_UnionBody->size() == 0) return this->_LLVMType;
+		//Find the member of the max size
+		size_t MaxSize = 0;
+		llvm::Type* MaxSizeType = NULL;
+		for (auto FDecl : *(this->_UnionBody))
+			if (FDecl->_VarType->GetLLVMType(__Generator)->isVoidTy()) {
+				throw std::logic_error("The member type of union cannot be void.");
+				return NULL;
+			}
+			else if (__Generator.GetTypeSize(FDecl->_VarType->GetLLVMType(__Generator)) > MaxSize) {
+				MaxSizeType = FDecl->_VarType->GetLLVMType(__Generator);
+				MaxSize = __Generator.GetTypeSize(MaxSizeType);
+			}
+		((llvm::StructType*)this->_LLVMType)->setBody(std::vector<llvm::Type*>{MaxSizeType});
+		return this->_LLVMType;
+	}
+	llvm::Type* UnionType::GetElementType(const std::string& __MemName, CodeGenerator& __Generator) {
+		for (auto FDecl : *(this->_UnionBody))
+			for (auto& MemName : *(FDecl->_MemList))
+				if (MemName == __MemName)
+					return FDecl->_VarType->GetLLVMType(__Generator);
+		return NULL;
+	}
+
 	//Enum type
 	llvm::Type* EnumType::GetLLVMType(CodeGenerator& __Generator) {
 		if (this->_LLVMType)
@@ -333,10 +370,17 @@ namespace AST {
 		//Generate the body of the enum type
 		int LastVal = -1;
 		for (auto Mem : *(this->_EnmList))
-			if (Mem->_hasValue)
+			if (Mem->_hasValue) {
 				LastVal = Mem->_Value;
+			}
 			else {
 				Mem->_Value = ++LastVal;
+			}
+		//Add constants to the symbol table
+		for (auto Mem : *(this->_EnmList))
+			if (!__Generator.AddConstant(Mem->_Name, IRBuilder.getInt32(Mem->_Value))) {
+				throw std::logic_error("Redefining symbol \"" + Mem->_Name + "\".");
+				return NULL;
 			}
 		//Enum type is actually an int32 type.
 		return llvm::IntegerType::getInt32Ty(Context);
@@ -344,8 +388,7 @@ namespace AST {
 
 	//Statement block
 	llvm::Value* Block::CodeGen(CodeGenerator& __Generator) {
-		__Generator.PushTypedefTable();
-		__Generator.PushVariableTable();
+		__Generator.PushSymbolTable();
 		//Generate the statements in Block, one by one.
 		for (auto& Stmt : *(this->_Content))
 			//If the current block already has a terminator,
@@ -355,8 +398,7 @@ namespace AST {
 				break;
 			else if (Stmt)	//We allow empty-statement which is represented by NULL pointer.
 				Stmt->CodeGen(__Generator);
-		__Generator.PopVariableTable();
-		__Generator.PopTypedefTable();
+		__Generator.PopSymbolTable();
 		return NULL;
 	}
 
@@ -382,22 +424,18 @@ namespace AST {
 		CurrentFunc->getBasicBlockList().push_back(ThenBB);
 		IRBuilder.SetInsertPoint(ThenBB);
 		if (this->_Then) {
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_Then->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 		}
 		TerminateBlockByBr(MergeBB);
 		//Generate code in the "Else" block
 		CurrentFunc->getBasicBlockList().push_back(ElseBB);
 		IRBuilder.SetInsertPoint(ElseBB);
 		if (this->_Else) {
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_Else->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 		}
 		TerminateBlockByBr(MergeBB);
 		//Finish "Merge" block
@@ -433,11 +471,9 @@ namespace AST {
 		IRBuilder.SetInsertPoint(WhileLoopBB);
 		if (this->_LoopBody) {
 			__Generator.EnterLoop(WhileCondBB, WhileEndBB);	//Don't forget to call "EnterLoop"
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_LoopBody->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
 		TerminateBlockByBr(WhileCondBB);
@@ -461,11 +497,9 @@ namespace AST {
 		IRBuilder.SetInsertPoint(DoLoopBB);
 		if (this->_LoopBody) {
 			__Generator.EnterLoop(DoCondBB, DoEndBB);		//Don't forget to call "EnterLoop"
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_LoopBody->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
 		TerminateBlockByBr(DoCondBB);
@@ -498,8 +532,7 @@ namespace AST {
 		//Since we allow variable declarations here, we need to push a new symbol table
 		//e.g., for (int i = 0; ...; ...) { ... }
 		if (this->_Initial) {
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_Initial->CodeGen(__Generator);
 		}
 		TerminateBlockByBr(ForCondBB);
@@ -524,11 +557,9 @@ namespace AST {
 		IRBuilder.SetInsertPoint(ForLoopBB);
 		if (this->_LoopBody) {
 			__Generator.EnterLoop(ForTailBB, ForEndBB);		//Don't forget to call "EnterLoop"
-			__Generator.PushTypedefTable();
-			__Generator.PushVariableTable();
+			__Generator.PushSymbolTable();
 			this->_LoopBody->CodeGen(__Generator);
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 			__Generator.LeaveLoop();						//Don't forget to call "LeaveLoop"
 		}
 		//If not terminated, jump to "ForTail"
@@ -543,8 +574,7 @@ namespace AST {
 		CurrentFunc->getBasicBlockList().push_back(ForEndBB);
 		IRBuilder.SetInsertPoint(ForEndBB);
 		if (this->_Initial) {
-			__Generator.PopVariableTable();
-			__Generator.PopTypedefTable();
+			__Generator.PopSymbolTable();
 		}
 		return NULL;
 	}
@@ -584,8 +614,7 @@ namespace AST {
 				IRBuilder.CreateBr(CaseBB[i]);
 		}
 		//Generate code for each case statement
-		__Generator.PushTypedefTable();
-		__Generator.PushVariableTable();
+		__Generator.PushSymbolTable();
 		for (int i = 0; i < this->_CaseList->size(); i++) {
 			CurrentFunc->getBasicBlockList().push_back(CaseBB[i]);
 			IRBuilder.SetInsertPoint(CaseBB[i]);
@@ -593,8 +622,7 @@ namespace AST {
 			this->_CaseList->at(i)->CodeGen(__Generator);
 			__Generator.LeaveLoop();
 		}
-		__Generator.PopVariableTable();
-		__Generator.PopTypedefTable();
+		__Generator.PopSymbolTable();
 		//Finish "SwitchEnd" block
 		if (CaseBB.back()->hasNPredecessorsOrMore(1)) {
 			CurrentFunc->getBasicBlockList().push_back(CaseBB.back());
@@ -664,20 +692,15 @@ namespace AST {
 		}
 	}
 
-	//Subscript, e.g. a[10]
+	//Subscript, e.g. a[10], b[2][3]
 	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
-		//Get the pointer pointing to the array
+		//Get the pointer
 		llvm::Value* ArrayPtr = this->_Array->CodeGen(__Generator);
-		if (!ArrayPtr) {
-			throw std::logic_error("Subscription must be used to a left-value.");
+		if (!ArrayPtr->getType()->isPointerTy()) {
+			throw std::logic_error("Subscript operator \"[]\" must be applied to pointers or arrays.");
 			return NULL;
 		}
 		//Get the index value
@@ -686,21 +709,8 @@ namespace AST {
 			throw std::logic_error("Subscription should be an integer.");
 			return NULL;
 		}
-		//If "ArrayPtr" points to an array, use CreateGEP.
-		//Otherwise, use pointer addition.
-		if (ArrayPtr->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
-			std::vector<llvm::Value*> Index;
-			Index.push_back(IRBuilder.getInt32(0));
-			Index.push_back(Subspt);
-			return IRBuilder.CreateGEP(
-				ArrayPtr->getType()->getNonOpaquePointerElementType(),
-				ArrayPtr,
-				Index
-			);
-		}
-		else {
-			return CreateAdd(ArrayPtr, Subspt, __Generator);
-		}
+		//Return pointer addition
+		return CreateAdd(ArrayPtr, Subspt, __Generator);
 	}
 
 	//Operator sizeof() in C
@@ -732,7 +742,7 @@ namespace AST {
 	//Function call
 	llvm::Value* FunctionCall::CodeGen(CodeGenerator& __Generator) {
 		//Get the function. Throw exception if the function doesn't exist.
-		llvm::Function* Func = __Generator.Module->getFunction(this->_FuncName);
+		llvm::Function* Func = __Generator.FindFunction(this->_FuncName);
 		if (Func == NULL) {
 			throw std::domain_error(this->_FuncName + " is not a defined function.");
 			return NULL;
@@ -776,60 +786,78 @@ namespace AST {
 
 	//Structure reference, e.g. a.x, a.y
 	llvm::Value* StructReference::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* StructReference::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* StructPtr = this->_Struct->CodeGenPtr(__Generator);
 		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
-			throw std::logic_error("Struct reference operator \".\" must be apply to struct pointers.");
+			throw std::logic_error("Reference operator \".\" must be apply to structs or unions.");
 			return NULL;
 		}
 		//Since C language uses name instead of index to fetch the element inside a struct,
 		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		//And it is the same with union types.
 		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
-		int MemIndex = StructType->GetElementIndex(this->_MemName);
-		if (MemIndex == -1) {
-			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
-			return NULL;
+		if (StructType) {
+			int MemIndex = StructType->GetElementIndex(this->_MemName);
+			if (MemIndex == -1) {
+				throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			std::vector<llvm::Value*> Indices;
+			Indices.push_back(IRBuilder.getInt32(0));
+			Indices.push_back(IRBuilder.getInt32(MemIndex));
+			return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 		}
-		std::vector<llvm::Value*> Indices;
-		Indices.push_back(IRBuilder.getInt32(0));
-		Indices.push_back(IRBuilder.getInt32(MemIndex));
-		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+		AST::UnionType* UnionType = __Generator.FindUnionType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		if (UnionType) {
+			llvm::Type* MemType = UnionType->GetElementType(this->_MemName, __Generator);
+			if (MemType == NULL) {
+				throw std::logic_error("The union doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			return IRBuilder.CreatePointerCast(StructPtr, MemType->getPointerTo());
+		}
+		throw std::logic_error("Compiler internal error. Maybe the designer forgets to update StructTypeTable or UnionTypeTable");
+		return NULL;
 	}
 
 	//Structure dereference, e.g. a->x, a->y
 	llvm::Value* StructDereference::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* StructDereference::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* StructPtr = this->_StructPtr->CodeGen(__Generator);
 		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
-			throw std::logic_error("Struct dereference operator \"->\" must be apply to struct pointers.");
+			throw std::logic_error("Dereference operator \"->\" must be apply to struct or union pointers.");
 			return NULL;
 		}
 		//Since C language uses name instead of index to fetch the element inside a struct,
 		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		//And it is the same with union types.
 		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
-		int MemIndex = StructType->GetElementIndex(this->_MemName);
-		if (MemIndex == -1) {
-			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
-			return NULL;
+		if (StructType) {
+			int MemIndex = StructType->GetElementIndex(this->_MemName);
+			if (MemIndex == -1) {
+				throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			std::vector<llvm::Value*> Indices;
+			Indices.push_back(IRBuilder.getInt32(0));
+			Indices.push_back(IRBuilder.getInt32(MemIndex));
+			return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 		}
-		std::vector<llvm::Value*> Indices;
-		Indices.push_back(IRBuilder.getInt32(0));
-		Indices.push_back(IRBuilder.getInt32(MemIndex));
-		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+		AST::UnionType* UnionType = __Generator.FindUnionType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		if (UnionType) {
+			llvm::Type* MemType = UnionType->GetElementType(this->_MemName, __Generator);
+			if (MemType == NULL) {
+				throw std::logic_error("The union doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			return IRBuilder.CreatePointerCast(StructPtr, MemType->getPointerTo());
+		}
+		throw std::logic_error("Compiler internal error. Maybe the designer forgets to update StructTypeTable or UnionTypeTable");
+		return NULL;
 	}
 
 	//Unary plus, e.g. +i, +j, +123
@@ -856,9 +884,9 @@ namespace AST {
 			)
 			throw std::logic_error("Unary minus must be applied to integers or floating-point numbers.");
 		if (Operand->getType()->isIntegerTy())
-			return IRBuilder.CreateSub(llvm::ConstantInt::get(Operand->getType(), 0, true), Operand);
+			return IRBuilder.CreateNeg(Operand);
 		else
-			return IRBuilder.CreateFSub(llvm::ConstantFP::get(Operand->getType(), 0.0), Operand);
+			return IRBuilder.CreateFNeg(Operand);
 	}
 	llvm::Value* UnaryMinus::CodeGenPtr(CodeGenerator& __Generator) {
 		throw std::logic_error("Unary minus only returns right-values.");
@@ -881,8 +909,7 @@ namespace AST {
 
 	//Prefix increment, e.g. ++i
 	llvm::Value* PrefixInc::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* PrefixInc::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
@@ -919,8 +946,7 @@ namespace AST {
 
 	//Prefix decrement, e.g. --i
 	llvm::Value* PrefixDec::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* PrefixDec::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* Operand = this->_Operand->CodeGenPtr(__Generator);
@@ -957,43 +983,15 @@ namespace AST {
 
 	//Indirection, e.g. *ptr
 	llvm::Value* Indirection::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, firstly, get its first element's pointer
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
-			std::vector<llvm::Value*> Index(2, IRBuilder.getInt32(0));
-			llvm::Value* ElePtr = IRBuilder.CreateGEP(
-				LValue->getType()->getNonOpaquePointerElementType(),
-				LValue,
-				Index
-			);
-			//If the element is still an array, return its pointer.
-			//Otherwise, create load instruction.
-			if (ElePtr->getType()->getNonOpaquePointerElementType()->isArrayTy())
-				return ElePtr;
-			else IRBuilder.CreateLoad(ElePtr->getType()->getNonOpaquePointerElementType(), ElePtr);
-		}
-		//Otherwise, create load.
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* Indirection::CodeGenPtr(CodeGenerator& __Generator) {
-		llvm::Value* Ptr = this->_Operand->CodeGenPtr(__Generator);
-		//If Ptr points to an array, return its first element's pointer
-		if (Ptr->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return IRBuilder.CreateGEP(
-				Ptr->getType()->getNonOpaquePointerElementType(),
-				Ptr,
-				std::vector<llvm::Value*>(2, IRBuilder.getInt32(0))
-			);
-		//Otherwise, return the element pointed by Ptr. This element must be a pointer type. 
-		else {
-			llvm::Value* Ele = IRBuilder.CreateLoad(Ptr->getType()->getNonOpaquePointerElementType(), Ptr);
-			if (!Ele->getType()->isPointerTy()) {
-				throw std::logic_error("Address operator \"&\" only applies on pointers or arrays.");
-				return NULL;
-			}
-			return Ele;
+		llvm::Value* Ptr = this->_Operand->CodeGen(__Generator);
+		if (!Ptr->getType()->isPointerTy()) {
+			throw std::logic_error("Indirection operator \"*\" only applies on pointers or arrays.");
+			return NULL;
 		}
+		return Ptr;
 	}
 
 	//Fetch address, e.g. &i
@@ -1410,8 +1408,7 @@ namespace AST {
 
 	//DirectAssign, e.g. x=y
 	llvm::Value* DirectAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* DirectAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1421,8 +1418,7 @@ namespace AST {
 
 	//DivAssign, e.g. x/=y
 	llvm::Value* DivAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* DivAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1440,8 +1436,7 @@ namespace AST {
 
 	//MulAssign, e.g. x*=y
 	llvm::Value* MulAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* MulAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1459,8 +1454,7 @@ namespace AST {
 
 	//ModAssign, e.g. x%=y
 	llvm::Value* ModAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* ModAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1478,8 +1472,7 @@ namespace AST {
 
 	//AddAssign, e.g. x+=y
 	llvm::Value* AddAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* AddAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1497,8 +1490,7 @@ namespace AST {
 
 	//SubAssign, e.g. x-=y
 	llvm::Value* SubAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* SubAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1516,8 +1508,7 @@ namespace AST {
 
 	//SHLAssign, e.g. x<<=y
 	llvm::Value* SHLAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* SHLAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1535,8 +1526,7 @@ namespace AST {
 
 	//SHRAssign, e.g. x>>=y
 	llvm::Value* SHRAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* SHRAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1554,8 +1544,7 @@ namespace AST {
 
 	//BitwiseANDAssign, e.g. x&=y
 	llvm::Value* BitwiseANDAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* BitwiseANDAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1573,8 +1562,7 @@ namespace AST {
 
 	//BitwiseXORAssign, e.g. x^=y
 	llvm::Value* BitwiseXORAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* BitwiseXORAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1592,8 +1580,7 @@ namespace AST {
 
 	//BitwiseORAssign, e.g. x|=y
 	llvm::Value* BitwiseORAssign::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* BitwiseORAssign::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* LHS = this->_LHS->CodeGenPtr(__Generator);
@@ -1621,20 +1608,23 @@ namespace AST {
 
 	//Variable, e.g. x
 	llvm::Value* Variable::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		llvm::Value* VarPtr = __Generator.FindVariable(this->_Name);
+		if (VarPtr) return CreateLoad(VarPtr, __Generator);
+		VarPtr = __Generator.FindConstant(this->_Name);
+		if (VarPtr) return VarPtr;
+		throw std::logic_error("Identifier \"" + this->_Name + "\" is neither a variable nor a constant.");
+		return NULL;
 	}
 	llvm::Value* Variable::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* VarPtr = __Generator.FindVariable(this->_Name);
-		if (VarPtr == NULL) {
-			throw std::logic_error("Variable " + this->_Name + " is not defined in this scope.");
+		if (VarPtr) return VarPtr;
+		VarPtr = __Generator.FindConstant(this->_Name);
+		if (VarPtr) {
+			throw std::logic_error("\"" + this->_Name + "\" is an immutable constant, not a left-value.");
 			return NULL;
 		}
-		return VarPtr;
+		throw std::logic_error("Identifier \"" + this->_Name + "\" is neither a variable nor a constant.");
+		return NULL;
 	}
 
 	//Constant, e.g. 1, 1.0, 'c', true, false

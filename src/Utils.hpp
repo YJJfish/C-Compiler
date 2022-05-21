@@ -232,16 +232,7 @@ llvm::Value* CreateAdd(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 		RHS = TMP;
 	}
 	if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
-		return IRBuilder.CreateIntToPtr(
-			IRBuilder.CreateAdd(
-				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
-				IRBuilder.CreateMul(
-					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
-					IRBuilder.getInt64(Generator.GetTypeSize(LHS->getType()->getNonOpaquePointerElementType()))
-				)
-			),
-			LHS->getType()
-		);
+		return IRBuilder.CreateGEP(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS);
 	}
 	throw std::logic_error("Addition using unsupported type combination.");
 	return NULL;
@@ -264,16 +255,7 @@ llvm::Value* CreateSub(llvm::Value* LHS, llvm::Value* RHS, CodeGenerator& Genera
 			return IRBuilder.CreateFSub(LHS, RHS);
 	}
 	if (LHS->getType()->isPointerTy() && RHS->getType()->isIntegerTy()) {
-		return IRBuilder.CreateIntToPtr(
-			IRBuilder.CreateSub(
-				IRBuilder.CreatePtrToInt(LHS, IRBuilder.getInt64Ty()),
-				IRBuilder.CreateMul(
-					IRBuilder.CreateIntCast(RHS, IRBuilder.getInt64Ty(), true),
-					IRBuilder.getInt64(Generator.GetTypeSize(LHS->getType()->getNonOpaquePointerElementType()))
-				)
-			),
-			LHS->getType()
-		);
+		return IRBuilder.CreateGEP(LHS->getType()->getNonOpaquePointerElementType(), LHS, IRBuilder.CreateNeg(RHS));
 	}
 	if (LHS->getType()->isPointerTy() && LHS->getType() == RHS->getType())
 		return IRBuilder.CreatePtrDiff(LHS->getType()->getNonOpaquePointerElementType(), LHS, RHS);
@@ -419,4 +401,19 @@ llvm::Value* CreateAssignment(llvm::Value* pLHS, llvm::Value* RHS, CodeGenerator
 	}
 	IRBuilder.CreateStore(RHS, pLHS);
 	return pLHS;
+}
+
+//Create a load instruction.
+//This is different to IRBuilder.CreateLoad.
+//If the argument is a pointer to an array, this function will
+//return a pointer to its first element, instead of loading an array.
+//This compiles with the C standard. For example:
+//int a[10];
+//int * b = a;	//When used as a right value, "a" is an integer pointer instead of an array. 
+llvm::Value* CreateLoad(llvm::Value* pLHS, CodeGenerator& Generator) {
+	//For array types, return the pointer to its first element
+	if (pLHS->getType()->getNonOpaquePointerElementType()->isArrayTy())
+		return IRBuilder.CreatePointerCast(pLHS, pLHS->getType()->getNonOpaquePointerElementType()->getArrayElementType()->getPointerTo());
+	else
+		return IRBuilder.CreateLoad(pLHS->getType()->getNonOpaquePointerElementType(), pLHS);
 }

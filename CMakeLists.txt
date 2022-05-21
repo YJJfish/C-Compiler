@@ -13,7 +13,7 @@ project (${project_name})
 ###############################################
 
 message("-- Generating lexer and parser codes")
-execute_process(WORKING_DIRECTORY ./src
+execute_process(WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/src
 				COMMAND flex Lexer.l
 				COMMAND bison -d Parser.y)
 
@@ -48,9 +48,4 @@ add_executable(${project_name} ${SOURCES})
 # Link
 ###############################################
 
-execute_process(COMMAND llvm-config-14 --libs all
-				OUTPUT_VARIABLE llvm_libs)
-string(STRIP ${llvm_libs} llvm_libs)
-string(REPLACE " " ";" llvm_libs ${llvm_libs})
-
-target_link_libraries(${project_name} ${llvm_libs})
+target_link_libraries(${project_name} ${LLVM_AVAILABLE_LIBS})

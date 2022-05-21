@@ -66,7 +66,7 @@ AST::Program *Root;
 		ARW BXOREQ BXOR BNOT
 		DADD ADDEQ ADD DSUB SUBEQ SUB
 		MULEQ MUL DIVEQ DIV MODEQ MOD
-		STRUCT TYPEDEF CONST ENUM PTR ARRAY
+		STRUCT UNION TYPEDEF CONST ENUM PTR ARRAY
 		IF ELSE FOR WHILE DO SWITCH CASE DEFAULT 
 		BREAK CONTINUE RETURN SIZEOF TRUE FALSE
 		BOOL SHORT INT LONG CHAR FLOAT DOUBLE VOID
@@ -178,9 +178,11 @@ VarType:	_VarType												{  $$ = $1;   }
 
 _VarType:	BuiltInType												{  $$ = $1;   }
 			| STRUCT LBRACE FieldDecls RBRACE						{  $$ = new AST::StructType($3);   }
+			| UNION LBRACE FieldDecls RBRACE						{  $$ = new AST::UnionType($3);   }
 			| ENUM LBRACE EnmList RBRACE							{  $$ = new AST::EnumType($3);   }
 			| _VarType PTR											{  $$ = new AST::PointerType($1);   }
 			| _VarType ARRAY LPAREN INTEGER RPAREN					{  $$ = new AST::ArrayType($1,$4);   }
+			| _VarType ARRAY LPAREN RPAREN							{  $$ = new AST::ArrayType($1);   }
 			| IDENTIFIER											{  $$ = new AST::DefinedType(*$1);   }
 			;
 			

@@ -62,34 +62,11 @@ extern llvm::LLVMContext Context;
 //has methods to create new instructions.
 extern llvm::IRBuilder<> IRBuilder;
 
-//TypedefTable class
-//Since LLVM doesn't support "typedef" explicitly,
-//we need to implement it manually.
-using TypedefTable = std::map<std::string, llvm::Type*>;
-
-//Since llvm's structs' members don't have names, we need to implement it manually.
-//Our solution is creating a mapping from llvm::StructType* to AST::StructType*
-using IdentifiedStructTypeTable = std::map<llvm::StructType*, AST::StructType*>;
-
-//VariableTable class
-//Since LLVM doesn't support visiting all variables explicitly,
-//we need to implement it manually.
-using VariableTable = std::map<std::string, llvm::Value*>;
 
 //CodeGenerator class
 class CodeGenerator {
 public:
 	llvm::Module* Module;
-private:
-	llvm::DataLayout* DL;								//Data layout
-	llvm::Function* CurrFunction;						//Current function
-	IdentifiedStructTypeTable* StructTypeTable;			//Struct type table
-	std::vector<TypedefTable*> TypedefStack;			//Typedef symbol table
-	std::vector<VariableTable*> VariableStack;			//Variable symbol table
-	std::vector<llvm::BasicBlock*> ContinueBlockStack;	//Store blocks for "continue" statement
-	std::vector<llvm::BasicBlock*> BreakBlockStack;		//Store blocks for "break" statement
-	llvm::BasicBlock* TmpBB;							//Temp block for global instruction code generation
-	llvm::Function* TmpFunc;							//Temp function for global instruction code generation
 public:
 	//Constructor
 	CodeGenerator(void);
@@ -97,37 +74,51 @@ public:
 	//Sizeof()
 	llvm::TypeSize GetTypeSize(llvm::Type* Type);
 
-	//Create and push an empty TypedefTable
-	void PushTypedefTable(void);
+	//Create and push an empty symbol table
+	void PushSymbolTable(void);
 
-	//Remove the last TypedefTable
-	void PopTypedefTable(void);
+	//Remove the last symbol table
+	void PopSymbolTable(void);
 
-	//Find the AST::VarType* instance for the given name
+	//Find the llvm::Function* instance for the given name
+	llvm::Function* FindFunction(std::string Name);
+
+	//Add a function to the current symbol table
+	//If an old value exists (i.e., conflict), return false
+	bool AddFunction(std::string Name, llvm::Function* Function);
+
+	//Find the llvm::Type* instance for the given name
 	llvm::Type* FindType(std::string Name);
 
-	//Add an item to the current typedef symbol table
+	//Add a type to the current symbol table
 	//If an old value exists (i.e., conflict), return false
 	bool AddType(std::string Name, llvm::Type* Type);
-
-	//Create and push an empty VariableTable
-	void PushVariableTable(void);
-
-	//Remove the last VariableTable
-	void PopVariableTable(void);
 
 	//Find variable
 	llvm::Value* FindVariable(std::string Name);
 
-	//Add an item to the current variable symbol table
+	//Add a variable to the current symbol table
 	//If an old value exists (i.e., conflict), return false
 	bool AddVariable(std::string Name, llvm::Value* Variable);
+
+	//Find constant
+	llvm::Value* FindConstant(std::string Name);
+
+	//Add a constant to the current symbol table
+	//If an old value exists (i.e., conflict), return false
+	bool AddConstant(std::string Name, llvm::Value* Constant);
 
 	//Find the AST::StructType* instance according to the llvm::StructType* instance
 	AST::StructType* FindStructType(llvm::StructType* Ty1);
 
 	//Add a <llvm::StructType*, AST::StructType*> mapping
 	bool AddStructType(llvm::StructType* Ty1, AST::StructType* Ty2);
+
+	//Find the AST::UnionType* instance according to the llvm::StructType* instance
+	AST::UnionType* FindUnionType(llvm::StructType* Ty1);
+
+	//Add a <llvm::StructType*, AST::UnionType*> mapping
+	bool AddUnionType(llvm::StructType* Ty1, AST::UnionType* Ty2);
 
 	//Set current function
 	void EnterFunction(llvm::Function* Func);
@@ -164,4 +155,44 @@ public:
 
 	//Generate visualization file (.html)
 	void GenHTML(std::string FileName, AST::Program& Root);
+private:
+	//Since llvm's structs' members don't have names, we need to implement it manually.
+	//Our solution is creating a mapping from llvm::StructType* to AST::StructType*
+	using StructTypeTable = std::map<llvm::StructType*, AST::StructType*>;
+
+	//Union type in C can be treated as a special kind of struct type.
+	using UnionTypeTable = std::map<llvm::StructType*, AST::UnionType*>;
+
+	//Symbol table
+	class Symbol {
+	public:
+		Symbol(void) : Content(NULL), Type(UNDEFINED) {}
+		Symbol(llvm::Function* Func) : Content(Func), Type(FUNCTION) {}
+		Symbol(llvm::Type* Ty) : Content(Ty), Type(TYPE) {}
+		Symbol(llvm::Value* Value, bool isConst) : Content(Value), Type(isConst ? CONSTANT : VARIABLE) {}
+		llvm::Function* GetFunction(void) { return this->Type == FUNCTION ? (llvm::Function*)Content : NULL; }
+		llvm::Type* GetType(void) { return this->Type == TYPE ? (llvm::Type*)Content : NULL; }
+		llvm::Value* GetVariable(void) { return this->Type == VARIABLE ? (llvm::Value*)Content : NULL; }
+		llvm::Value* GetConstant(void) { return this->Type == CONSTANT ? (llvm::Value*)Content : NULL; }
+	private:
+		void* Content;
+		enum {
+			FUNCTION,
+			TYPE,
+			VARIABLE,
+			CONSTANT,
+			UNDEFINED
+		} Type;
+	};
+	using SymbolTable = std::map<std::string, Symbol>;
+private:
+	llvm::DataLayout* DL;								//Data layout
+	llvm::Function* CurrFunction;						//Current function
+	StructTypeTable* StructTyTable;						//Struct type table
+	UnionTypeTable* UnionTyTable;						//Union type table
+	std::vector<SymbolTable*> SymbolTableStack;			//Symbol table
+	std::vector<llvm::BasicBlock*> ContinueBlockStack;	//Store blocks for "continue" statement
+	std::vector<llvm::BasicBlock*> BreakBlockStack;		//Store blocks for "break" statement
+	llvm::BasicBlock* TmpBB;							//Temp block for global instruction code generation
+	llvm::Function* TmpFunc;							//Temp function for global instruction code generation
 };

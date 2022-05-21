@@ -78,6 +78,7 @@ char Escape2Char(char ch){
 "?"														{return QUES;}
 ":"														{return COLON;}
 "struct"												{return STRUCT;}
+"union"													{return UNION;}
 "typedef"												{return TYPEDEF;}
 "const"													{return CONST;}
 "enum"													{return ENUM;}

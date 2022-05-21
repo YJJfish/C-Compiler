@@ -22,9 +22,8 @@ CodeGenerator::CodeGenerator(void) :
 	Module(new llvm::Module("main", Context)),
 	DL(new llvm::DataLayout(Module)),
 	CurrFunction(NULL),
-	StructTypeTable(NULL),
-	TypedefStack(),
-	VariableStack(),
+	StructTyTable(NULL),
+	SymbolTableStack(),
 	ContinueBlockStack(),
 	BreakBlockStack(),
 	TmpBB(NULL),
@@ -36,88 +35,141 @@ llvm::TypeSize CodeGenerator::GetTypeSize(llvm::Type* Type) {
 	return this->DL->getTypeAllocSize(Type);
 }
 
-//Create and push an empty TypedefTable
-void CodeGenerator::PushTypedefTable(void) {
-	this->TypedefStack.push_back(new TypedefTable);
+//Create and push an empty symbol table
+void CodeGenerator::PushSymbolTable(void) {
+	this->SymbolTableStack.push_back(new SymbolTable);
 }
 
-//Remove the last TypedefTable
-void CodeGenerator::PopTypedefTable(void) {
-	if (this->TypedefStack.size() == 0) return;
-	delete this->TypedefStack.back();
-	this->TypedefStack.pop_back();
+//Remove the last symbol table
+void CodeGenerator::PopSymbolTable(void) {
+	if (this->SymbolTableStack.size() == 0) return;
+	delete this->SymbolTableStack.back();
+	this->SymbolTableStack.pop_back();
 }
 
-//Find the AST::VarType* instance for the given name
-llvm::Type* CodeGenerator::FindType(std::string Name) {
-	for (auto TableIter = this->TypedefStack.end() - 1; TableIter >= this->TypedefStack.begin(); TableIter--) {
+//Find the llvm::Function* instance for the given name
+llvm::Function* CodeGenerator::FindFunction(std::string Name) {
+	if (this->SymbolTableStack.size() == 0) return NULL;
+	for (auto TableIter = this->SymbolTableStack.end() - 1; TableIter >= this->SymbolTableStack.begin(); TableIter--) {
 		auto PairIter = (**TableIter).find(Name);
 		if (PairIter != (**TableIter).end())
-			return PairIter->second;
+			return PairIter->second.GetFunction();
 	}
 	return NULL;
 }
 
-//Add an item to the current typedef symbol table
+//Add a function to the current symbol table
 //If an old value exists (i.e., conflict), return false
-bool CodeGenerator::AddType(std::string Name, llvm::Type* Type) {
-	if (this->TypedefStack.size() == 0) return false;
-	auto& TopTable = *(this->TypedefStack.back());
+bool CodeGenerator::AddFunction(std::string Name, llvm::Function* Function) {
+	if (this->SymbolTableStack.size() == 0) return false;
+	auto& TopTable = *(this->SymbolTableStack.back());
 	auto PairIter = TopTable.find(Name);
 	if (PairIter != TopTable.end())
 		return false;
-	TopTable[Name] = Type;
+	TopTable[Name] = Symbol(Function);
 	return true;
 }
 
-//Create and push an empty VariableTable
-void CodeGenerator::PushVariableTable(void) {
-	this->VariableStack.push_back(new VariableTable);
+//Find the llvm::Type* instance for the given name
+llvm::Type* CodeGenerator::FindType(std::string Name) {
+	if (this->SymbolTableStack.size() == 0) return NULL;
+	for (auto TableIter = this->SymbolTableStack.end() - 1; TableIter >= this->SymbolTableStack.begin(); TableIter--) {
+		auto PairIter = (**TableIter).find(Name);
+		if (PairIter != (**TableIter).end())
+			return PairIter->second.GetType();
+	}
+	return NULL;
 }
 
-//Remove the last VariableTable
-void CodeGenerator::PopVariableTable(void) {
-	if (this->VariableStack.size() == 0) return;
-	delete this->VariableStack.back();
-	this->VariableStack.pop_back();
+//Add a type to the current symbol table
+//If an old value exists (i.e., conflict), return false
+bool CodeGenerator::AddType(std::string Name, llvm::Type* Type) {
+	if (this->SymbolTableStack.size() == 0) return false;
+	auto& TopTable = *(this->SymbolTableStack.back());
+	auto PairIter = TopTable.find(Name);
+	if (PairIter != TopTable.end())
+		return false;
+	TopTable[Name] = Symbol(Type);
+	return true;
 }
 
 //Find variable
 llvm::Value* CodeGenerator::FindVariable(std::string Name) {
-	for (auto TableIter = this->VariableStack.end() - 1; TableIter >= this->VariableStack.begin(); TableIter--) {
+	if (this->SymbolTableStack.size() == 0) return NULL;
+	for (auto TableIter = this->SymbolTableStack.end() - 1; TableIter >= this->SymbolTableStack.begin(); TableIter--) {
 		auto PairIter = (**TableIter).find(Name);
 		if (PairIter != (**TableIter).end())
-			return PairIter->second;
+			return PairIter->second.GetVariable();
 	}
 	return NULL;
 }
 
-//Add an item to the current variable symbol table
+//Add a variable to the current symbol table
 //If an old value exists (i.e., conflict), return false
 bool CodeGenerator::AddVariable(std::string Name, llvm::Value* Variable) {
-	if (this->VariableStack.size() == 0) return false;
-	auto& TopTable = *(this->VariableStack.back());
+	if (this->SymbolTableStack.size() == 0) return false;
+	auto& TopTable = *(this->SymbolTableStack.back());
 	auto PairIter = TopTable.find(Name);
 	if (PairIter != TopTable.end())
 		return false;
-	TopTable[Name] = Variable;
+	TopTable[Name] = Symbol(Variable, false);
+	return true;
+}
+
+//Find constant
+llvm::Value* CodeGenerator::FindConstant(std::string Name) {
+	if (this->SymbolTableStack.size() == 0) return NULL;
+	for (auto TableIter = this->SymbolTableStack.end() - 1; TableIter >= this->SymbolTableStack.begin(); TableIter--) {
+		auto PairIter = (**TableIter).find(Name);
+		if (PairIter != (**TableIter).end())
+			return PairIter->second.GetConstant();
+	}
+	return NULL;
+}
+
+//Add a constant to the current symbol table
+//If an old value exists (i.e., conflict), return false
+bool CodeGenerator::AddConstant(std::string Name, llvm::Value* Constant) {
+	if (this->SymbolTableStack.size() == 0) return false;
+	auto& TopTable = *(this->SymbolTableStack.back());
+	auto PairIter = TopTable.find(Name);
+	if (PairIter != TopTable.end())
+		return false;
+	TopTable[Name] = Symbol(Constant, true);
 	return true;
 }
 
 //Find the AST::StructType* instance according to the llvm::StructType* instance
 AST::StructType* CodeGenerator::FindStructType(llvm::StructType* Ty1) {
-	auto PairIter = this->StructTypeTable->find(Ty1);
-	if (PairIter != this->StructTypeTable->end())
+	auto PairIter = this->StructTyTable->find(Ty1);
+	if (PairIter != this->StructTyTable->end())
 		return PairIter->second;
 	return NULL;
 }
 
 //Add a <llvm::StructType*, AST::StructType*> mapping
 bool CodeGenerator::AddStructType(llvm::StructType* Ty1, AST::StructType* Ty2) {
-	auto PairIter = this->StructTypeTable->find(Ty1);
-	if (PairIter != this->StructTypeTable->end())
+	auto PairIter = this->StructTyTable->find(Ty1);
+	if (PairIter != this->StructTyTable->end())
 		return false;
-	(*this->StructTypeTable)[Ty1] = Ty2;
+	(*this->StructTyTable)[Ty1] = Ty2;
+	return true;
+}
+
+//Find the AST::UnionType* instance according to the llvm::StructType* instance
+AST::UnionType* CodeGenerator::FindUnionType(llvm::StructType* Ty1) {
+	auto PairIter = this->UnionTyTable->find(Ty1);
+	if (PairIter != this->UnionTyTable->end())
+		return PairIter->second;
+	return NULL;
+}
+
+//Add a <llvm::StructType*, AST::UnionType*> mapping
+bool CodeGenerator::AddUnionType(llvm::StructType* Ty1, AST::UnionType* Ty2) {
+	auto PairIter = this->UnionTyTable->find(Ty1);
+	if (PairIter != this->UnionTyTable->end())
+		return false;
+	(*this->UnionTyTable)[Ty1] = Ty2;
 	return true;
 }
 
@@ -176,9 +228,9 @@ void CodeGenerator::XchgInsertPointWithTmpBB(void) {
 void CodeGenerator::GenerateCode(AST::Program& Root, const std::string& OptimizeLevel) {
 
 	//Initialize symbol table
-	this->StructTypeTable = new IdentifiedStructTypeTable;
-	this->PushTypedefTable();
-	this->PushVariableTable();
+	this->StructTyTable = new StructTypeTable;
+	this->UnionTyTable = new UnionTypeTable;
+	this->PushSymbolTable();
 
 	//Create a temp function and a temp block for global instruction code generation
 	this->TmpFunc = llvm::Function::Create(llvm::FunctionType::get(IRBuilder.getVoidTy(), false), llvm::GlobalValue::InternalLinkage, "0Tmp", this->Module);
@@ -193,9 +245,9 @@ void CodeGenerator::GenerateCode(AST::Program& Root, const std::string& Optimize
 	this->TmpFunc->eraseFromParent();
 
 	//Delete symbol table
-	this->PopTypedefTable();
-	this->PopVariableTable();
-	delete this->StructTypeTable; this->StructTypeTable = NULL;
+	this->PopSymbolTable();
+	delete this->StructTyTable; this->StructTyTable = NULL;
+	delete this->UnionTyTable; this->UnionTyTable = NULL;
 
 	//Run optimization
 	if (OptimizeLevel != "") {

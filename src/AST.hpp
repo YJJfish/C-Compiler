@@ -67,6 +67,7 @@ namespace AST {
 		class PointerType;
 		class ArrayType;
 		class StructType;
+		class UnionType;
 			class FieldDecl;
 			using FieldDecls = std::vector<FieldDecl*>;
 			using MemList = std::vector<std::string>;
@@ -292,6 +293,7 @@ namespace AST {
 		virtual bool isPointerType(void) = 0;
 		virtual bool isArrayType(void) = 0;
 		virtual bool isStructType(void) = 0;
+		virtual bool isUnionType(void) = 0;
 		virtual bool isEnumType(void) = 0;
 		virtual std::string astJson() = 0;
 	};
@@ -324,6 +326,7 @@ namespace AST {
 		bool isPointerType(void) { return false; }
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return false; }
 		bool isEnumType(void) { return false; }
 		std::string astJson();
 	};
@@ -345,6 +348,7 @@ namespace AST {
 		bool isPointerType(void) { return false; }
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return false; }
 		bool isEnumType(void) { return false; }
 		std::string astJson();
 	};
@@ -367,6 +371,7 @@ namespace AST {
 		bool isPointerType(void) { return true; }
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return false; }
 		bool isEnumType(void) { return false; }
 		std::string astJson();
 	};
@@ -381,6 +386,7 @@ namespace AST {
 		size_t _Length;
 
 		ArrayType(VarType* __BaseType, size_t __Length) : _BaseType(__BaseType), _Length(__Length) {}
+		ArrayType(VarType* __BaseType) : _BaseType(__BaseType), _Length(0) {}
 		~ArrayType(void) {}
 		//Return the corresponding instance of llvm::Type*.
 		//Meanwhile, it will update _LLVMType.
@@ -391,6 +397,7 @@ namespace AST {
 		bool isPointerType(void) { return false; }
 		bool isArrayType(void) { return true; }
 		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return false; }
 		bool isEnumType(void) { return false; }
 		std::string astJson();
 	};
@@ -418,6 +425,35 @@ namespace AST {
 		bool isPointerType(void) { return false; }
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return true; }
+		bool isUnionType(void) { return false; }
+		bool isEnumType(void) { return false; }
+		std::string astJson();
+	};
+
+	//Struct Type
+	class UnionType : public VarType {
+	public:
+		//Struct body
+		FieldDecls* _UnionBody;
+
+		UnionType(FieldDecls* _UnionBody) : _UnionBody(_UnionBody) {}
+		~UnionType(void) {}
+		//This is only called if the union type is an anonymous one,
+		//or its LLVM type is already generated.
+		llvm::Type* GetLLVMType(CodeGenerator& __Generator);
+		//Return the corresponding instance of llvm::Type*, as an identified struct type
+		//Meanwhile, it will update _LLVMType.
+		llvm::Type* GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name = "<unnamed>");
+		llvm::Type* GenerateLLVMTypeBody(CodeGenerator& __Generator);
+		//Get the element type according to its name
+		llvm::Type* GetElementType(const std::string& __MemName, CodeGenerator& __Generator);
+		//Determine class type
+		bool isBuiltInType(void) { return false; }
+		bool isDefinedType(void) { return false; }
+		bool isPointerType(void) { return false; }
+		bool isArrayType(void) { return false; }
+		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return true; }
 		bool isEnumType(void) { return false; }
 		std::string astJson();
 	};
@@ -454,6 +490,7 @@ namespace AST {
 		bool isPointerType(void) { return false; }
 		bool isArrayType(void) { return false; }
 		bool isStructType(void) { return false; }
+		bool isUnionType(void) { return false; }
 		bool isEnumType(void) { return true; }
 		std::string astJson();
 	};

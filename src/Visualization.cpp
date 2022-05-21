@@ -6,46 +6,52 @@
  */
 
 #include "AST.hpp"
+#include <iostream>
+#include <sstream>
 
 using namespace std;
 using namespace AST;
 
 //去除转义字符
 string getString(string name){
-	int pos = 0;
-	int len = name.length();
-	string res;
-	while (name[pos] != '\n' && name[pos] != '\0')
-	{
-		++pos;
+	// s is our escaped output string
+	std::string s = "";
+	// loop through all characters
+	for (char c : name){
+		// check if a given character is printable
+		// the cast is necessary to avoid undefined behaviour
+		if (c == '\"' || c == '\'' || c == '\\')
+			s = s + "\\" + c;
+		else if (c == '\n')
+			s += "\\n";
+		else if (c == '\t')
+			s += "\\t";
+		else if (c == '\r')
+			s += "\\r";
+		else if (isprint((unsigned char)c))
+			s += c;
+		else {
+			std::stringstream stream;
+			// if the character is not printable
+			// we'll convert it to a hex string using a stringstream
+			// note that since char is signed we have to cast it to unsigned first
+			stream << std::hex << (unsigned int)(unsigned char)(c);
+			std::string code = stream.str();
+			s += std::string("\\x") + (code.size() < 2 ? "0" : "") + code;
+			// alternatively for URL encodings:
+			//s += std::string("%")+(code.size()<2?"0":"")+code;
+		}
 	}
-	if (pos == len)
-		return name;
-	string s1 = getString(name.substr(0, pos));
-	string s2 = getString(name.substr(pos + 1, len));
-	res = s1 + "\\" + "n" + s2;
-	return res;
+	return s;
 }
 
 string getJson(string name) {
-	// int pos = 0;
-	// while(name[pos] != '\0')
-	// {
-	//	 if(name[pos] == '\n')
-	//		 return "{ \"name\" : \"" + getString(name) + "\" }";
-	// }
+	//Escape twice.
+	//new line => "\\n" => "\\\\n"
+	//When printed out, it will be \\n
+	//double quote => "\\\"" => "\\\\\\\""
+	//When printed out, it will be \\\"
 	return "{ \"name\" : \"" + getString(name) + "\" }";
-}
-
-string getJson(char c) {
-	string name(1, c);
-	// int pos = 0;
-	// while(name[pos] != '\0')
-	// {
-	//	 if(name[pos] == '\n')
-	//		 return "{ \"name\" : \"" + getString(name) + "\" }";
-	// }
-	return "{ \"name\" : \"" + name + "\" }";
 }
 
 string getJson(string name, vector<string> children) {
@@ -63,19 +69,6 @@ string getJson(string name, vector<string> children) {
 
 string getJson(string name, string value) {
 	return getJson(name, vector<string>{value});
-}
-
-string getJson(string name, string value, vector<string> children) {
-	string result = "{ \"name\" : \"" + name + "\", \"value\" : \"" + value + "\", \"children\" : [ ";
-	int i = 0;
-	for (auto& child : children) {
-		if (i != children.size() - 1)
-			result += child + ", ";
-		else
-			result += child + " ";
-		i++;
-	}
-	return result + " ] }";
 }
 
 string Program::astJson() {
@@ -180,6 +173,13 @@ string StructType::astJson() {
 	for (auto& x : *_StructBody)
 		children.push_back(x->astJson());
 	return getJson("StructType", children);
+}
+
+string UnionType::astJson() {
+	vector<string> children;
+	for (auto& x : *_UnionBody)
+		children.push_back(x->astJson());
+	return getJson("UnionType", children);
 }
 
 string FieldDecl::astJson() {
@@ -676,7 +676,7 @@ string Variable::astJson() {
 
 string GlobalString::astJson() {
 	vector<string> children;	//children node json
-	children.push_back(getJson(_Content));
+	children.push_back(getJson("\"" + getString(_Content) + "\""));
 	return getJson("Global String", children);
 }
 
@@ -693,8 +693,7 @@ string Constant::astJson() {
 		return getJson("Constant", getJson(to_string(_Integer)));
 		break;
 	case BuiltInType::TypeID::_Char:
-		//string s(1,_Character);
-		return getJson("Constant", getJson(_Character));
+		return getJson("Constant", getJson("\'" + getString(string(1, _Character)) + "\'"));
 		break;
 	case BuiltInType::TypeID::_Float:
 	case BuiltInType::TypeID::_Double:
