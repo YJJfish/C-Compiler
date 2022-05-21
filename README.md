@@ -88,7 +88,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
     ```C
     /*This is an example that prints "Hello World!"*/
-    int printf(char ptr, ...);
+    int printf(char ptr, ...);	//Or int printf(char array(), ...);
     int main(void){
     	printf("Hello World!\n");
     	return 0;
@@ -173,6 +173,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
     int array(2) d = {1,2};						//Illegal
     int array(2) e = 1;							//Illegal
     struct {int x, y;} p = {1, 2};				//Illegal
+    union {int x; float y;} u = {1, 2};			//Illegal
     ```
 
     If you want to initialize variables of complex types like arrays, please use loop statements.
@@ -235,6 +236,8 @@ Due to the complexity of C language, to simplify our project task, we design a C
     } Node;
     ```
 
+    And it is the same with `union` and `enum` types.
+
 9. Array types in C are very complex and confusing. Let's look at the following two examples:
 
     ```C
@@ -255,7 +258,7 @@ Due to the complexity of C language, to simplify our project task, we design a C
 
     Although `a` is an array in both functions, the IR codes totally different. In the first example, `a` is a locally defined array. Therefore, the type of `a` is an array type. In the second example, `a` is a parameter. Therefore, the type of `a` is `int*` according to the C standard.
 
-    In our language, to simplify this problem and comply with the C standard simultaneously, when `a` whose type is `int array(n)` is passed as an parameter, instead of treating it as a `int*` pointer, we will treat it as `int array(n) ptr`. This way, it will be treated as an array as if it is defined locally, except that modifying `a[0]` won't result in the modification of the local stack, but rather the modification of the passed array (This complies with the C standard).
+    In our language, to simplify this problem and comply with the C standard simultaneously, when `a` is defined as a local variable whose type is `int array(n)`, instead of treating `a` as a `int array(n)` instance, we will treat it as `int ptr`. This way, our compiler complies with the C standard (If you try `int a[10]; auto b = a;` in C++, you will find out that the type of `b` is `int *`).
 
 In conclusion, The grammar of our language is:
 
@@ -309,6 +312,7 @@ In conclusion, The grammar of our language is:
   QUES			"?"
   COLON			":"
   STRUCT			"struct"
+  UNION			"union"
   TYPEDEF			"typedef"
   CONST			"const"
   ENUM			"enum"
@@ -375,9 +379,11 @@ In conclusion, The grammar of our language is:
   
   _VarType ->		BuiltInType |
   				STRUCT LBRACE FieldDecls RBRACE |
+  				UNION LBRACE FieldDecls RBRACE |
   				ENUM LBRACE EnmList RBRACE
   				_VarType PTR |
   				_VarType ARRAY LPAREN INTEGER RPAREN |
+  				_VarType ARRAY LPAREN RPAREN |
   				IDENTIFIER
   
   BuiltInType ->	BOOL | SHORT | INT | LONG | CHAR | FLOAT | DOUBLE | VOID
