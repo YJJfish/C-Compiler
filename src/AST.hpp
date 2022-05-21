@@ -45,6 +45,8 @@ class CodeGenerator;
 namespace AST {
 
 	//Forward declarations
+	
+	class Node;
 
 	/*** Root ***/
 	class Program;
@@ -430,7 +432,7 @@ namespace AST {
 		std::string astJson();
 	};
 
-	//Struct Type
+	//Union Type
 	class UnionType : public VarType {
 	public:
 		//Struct body

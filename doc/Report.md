@@ -40,7 +40,7 @@
 
 - **所有C语言基本语句**。包括`if`, `for`, `while`, `do`, `switch`, `case`, `break`, `continue`, `return`。
 - **所有C语言表达式**。包括括号`()`, 数组下标`[]`, `sizeof`, 函数调用, 结构体`->`, `.`, 一元`+`, 一元`-`, 强制类型转换, 前缀`++`, 前缀`--`, 后缀`++`, 后缀`--`, 取地址`&`, 取内存`*`, 位运算`&`, `|`, `~`, `^`，逻辑运算`||`, `&&`, `!`, 比较运算`>`, `>=`, `<`, `<=`, `==`, `!=`, 算术运算`+`, `-`, `*`, `/`, `%`, 移位运算`<<`, `>>`, 赋值语句`=`, `+=`, `-=`, `*=`, `/=`, `%=`, `<<=`, `>>=`, `|=`, `&=`, `^=`, 逗号表达式`,`, 三元运算符`?:`。
-- **类型系统**。基本数据类型包括`bool`, `char`, `short`, `int`, `long`, `float`, `double`, `void`。复杂数据类型`array`, `struct`, `enum`。支持`typedef`。
+- **类型系统**。基本数据类型包括`bool`, `char`, `short`, `int`, `long`, `float`, `double`, `void`。复杂数据类型`array`, `struct`, `enum`, `union`。支持`typedef`。
 - **递归式结构体**。结构体内可以定义指向自己类型的指针，从而实现链表。
 
 - **指针类型**。支持任意类型的指针类型，例如`int ptr`, `struct{int x, y;} ptr`。并且支持`&`, `*`, `->`等指针运算。
@@ -137,7 +137,7 @@
 
 - `-i`: 指定输入文件（源代码）。必填
 
-- `-o`: 指定输出文件（目标代码）。默认为`a.o`.
+- `-o`: 指定输出文件（目标代码）。默认为`a.o`。
 
 - `-l`: 指定中间代码输出文件。如果使用了`-l`选项而未指定任何文件，则输出到控制台屏幕。
 
@@ -256,6 +256,7 @@ char Escape2Char(char ch){
 ":"														{return COLON;}
 
 "struct"												{return STRUCT;}
+"union"													{return UNION;}
 "typedef"												{return TYPEDEF;}
 "const"													{return CONST;}
 ...
@@ -337,7 +338,7 @@ char Escape2Char(char ch){
   }
   ```
 
-* 所有代码应在一个源文件中
+* 所有代码应在一个源文件中。
 
 * 指针类型应该用`ptr`进行声明。这与C语言用`*`来声明不同，因为我们的语法分析程序不能区分`a*b`是”a乘以b“还是"a类型的指针变量b"。
 
@@ -405,7 +406,7 @@ char Escape2Char(char ch){
   struct {int x, y;} p = {1, 2};				//Illegal
   ```
 
-* 我们的语言定义表达式是一种特殊的语句。表达式有返回值，但语句不一定有返回值。在期待输入表达式的地方，不能输入变量声明，因为变量声明是语句而非表达式。
+* “表达式”是一种特殊的“语句”。表达式有返回值，但语句不一定有返回值。在期待输入表达式的地方，不能输入变量声明，因为变量声明是语句而非表达式。
 
   例如，`for`语句需要的表达式和语句如下：
 
@@ -429,7 +430,7 @@ char Escape2Char(char ch){
   };
   ```
 
-* 和C一样，我们也有变量类型等价。但是如下的代码不能编译（这和C语言的特性是一样的）：
+* 和C一样，我们的变量类型等价用“Name Equivalence”实现。如下的代码不能编译（这和C语言的特性是一样的）：
 
   ```c
   struct {int x, y;} test(void){
@@ -461,6 +462,8 @@ char Escape2Char(char ch){
   } Node;
   ```
 
+  枚举类型`enum`和共用体类型`union`同理。
+
 * C语言中数组的处理十分复杂。例如下面：
 
   ```c
@@ -481,7 +484,9 @@ char Escape2Char(char ch){
 
   尽管在两个函数中`a`都是数组，但它们的中间代码完全不同。在第一个例子中，`a`是一个本地定义的数组；在第二个例子中，`a`是参数，因此`a`是`int*`类型的。
 
-  为了简化，我们规定作为函数参数传入的`int array(n)`也作为`int array(n) ptr`类型而不是`int *`，函数内部把其当作本地定义的数组。其中和C标准一致的是，修改`a[0]`不会修改本地栈而是传入的数组。
+  为了简化，我们规定，当定义了一个局部变量`a`时，当`a`在表达式中作为右值时，其类型是指向数组元素的指针（而非数组）。只有当`a`作为左值时，`a`才是数组。例如`&a`将得到一个指向数组的指针，而`int * b = a`将`a`解释为指向数组第一个元素的指针。
+  
+  这和C标准是一致的，不信你可以在C++里试试`auto b = a; auto c = &a;`再看看`b`和`c`的类型。
 
 ### 2.2 Yacc
 
@@ -552,7 +557,7 @@ Expr:		Expr LBRACKET Expr RBRACKET %prec ARW				{  $$ = new AST::Subscript($1,$3
 
 语法分析程序的输出是抽象语法树，即称作抽象语法的快速计数法的树形表示。抽象语法树的每一个节点表示一种类型，我们定义的类型之间的继承关系如下：
 
-![image-20220518095344348](./images/ast.png)
+![image-20220521223852269](images/image-20220521223852269.png)
 
 #### 2.3.1 Node类
 
@@ -608,7 +613,7 @@ Decl类也是纯虚类型，包括函数、变量和类型的声明（定义）�
 变量声明包括了变量类型和变量列表：
 
 ```c++
-//Variable declaration
+	//Variable declaration
 	class VarDecl : public Decl {
 	public:
 		//The variable type
@@ -638,7 +643,7 @@ Decl类也是纯虚类型，包括函数、变量和类型的声明（定义）�
 
 #### 2.3.4 VarType类
 
-VarType类即变量类型类，包括字段常量类型`_isConst`和虚字段内置类型`isBuiltInType`、定义类型`isDefinedType`、指针类型`isPointerType`、数组类型`isArrayType`、结构类型`isStructType`、枚举类型`isEnumType`。
+VarType类即变量类型类，包括字段常量类型`_isConst`和虚字段内置类型`isBuiltInType`、定义类型`isDefinedType`、指针类型`isPointerType`、数组类型`isArrayType`、结构类型`isStructType`、枚举类型`isEnumType`、共用体类型`isUnionType`。
 
 ```c++
 //Base class for variable type
@@ -666,6 +671,7 @@ VarType类即变量类型类，包括字段常量类型`_isConst`和虚字段内
 		virtual bool isPointerType(void) = 0;
 		virtual bool isArrayType(void) = 0;
 		virtual bool isStructType(void) = 0;
+		virtual bool isUnionType(void) = 0;
 		virtual bool isEnumType(void) = 0;
 	};
 ```
@@ -694,6 +700,80 @@ Expr的语义是表达式类，即有值的返回结构。我们定义的表达�
 ```
 
 ### 2.4 抽象语法树可视化
+
+抽象语法树可视化的设计：首先为每个AST节点类设计astJson函数，当运行程序后，会递归调用每个AST节点类的astJson函数，返回相应的Json字符串，并生成AST可视化的Json数据。之后d3.js可以通过Json数据，绘制抽象语法树的可视化图html。
+
+抽象语法树可视化的实现过程：
+
+1、输入正确的指令（例如指令中的-v a能够生成a.html文件），运行程序，生成AST。
+
+2、AST从根节点（program）处递归调用astJson函数，此后每个AST节点类都会返回对应的Json字符串，生成AST可视化的Json数据，并将Json数据嵌入到html文件中。html文件会产生在当前文件夹下。
+
+3、双击产生的html文件，即可看到抽象语法树可视化图。
+
+获取Json数据字符串的函数getJson函数如下，其中第一个getString函数的作用是为了去除字符串中的'\n'字符，因为如果Json数据读入'\n'字符，会导致Json数据换行出现格式错误。
+
+```c++
+//去除转义字符
+string getString(string name){
+	int pos = 0;
+	int len = name.length();
+	string res;
+	while (name[pos] != '\n' && name[pos] != '\0')
+	{
+		++pos;
+	}
+	if (pos == len)
+		return name;
+	string s1 = getString(name.substr(0, pos));
+	string s2 = getString(name.substr(pos + 1, len));
+	res = s1 + "\\" + "n" + s2;
+	return res;
+}
+
+string getJson(string name) {
+	return "{ \"name\" : \"" + getString(name) + "\" }";
+}
+
+string getJson(char c) {
+	string name(1, c);
+	return "{ \"name\" : \"" + name + "\" }";
+}
+
+string getJson(string name, vector<string> children) {
+	string result = "{ \"name\" : \"" + name + "\", \"children\" : [ ";
+	int i = 0;
+	for (auto& child : children) {
+		if (i != children.size() - 1)
+			result += child + ", ";
+		else
+			result += child + " ";
+		i++;
+	}
+	return result + " ] }";
+}
+
+string getJson(string name, string value) {
+	return getJson(name, vector<string>{value});
+}
+
+string getJson(string name, string value, vector<string> children) {
+	string result = "{ \"name\" : \"" + name + "\", \"value\" : \"" + value + "\", \"children\" : [ ";
+	int i = 0;
+	for (auto& child : children) {
+		if (i != children.size() - 1)
+			result += child + ", ";
+		else
+			result += child + " ";
+		i++;
+	}
+	return result + " ] }";
+}
+```
+
+抽象语法树可视化的效果图如下：
+
+![效果](images/效果.png)
 
 ## 三、语义分析
 
@@ -769,73 +849,69 @@ CodeGenerator::CodeGenerator(void) :
   ```
 
   上述代码可以正确通过编译，尽管它存在6个重名的变量`i`。`llvm::Module`并不支持这一功能，它会把重名的变量`i`改名为`i1`, `i2`, `i3`等等。因此我们需要手动维护一个**栈**，栈里面存储符号表。每进入一层语句块，就将一个空符号表压栈；每跳出一层语句块，就将栈顶的符号表弹栈并删除。
-
-##### 3.2.3.1 变量符号表栈
-
-变量符号表将变量名和对应的`llvm::Value*`实例一一对应。
-
-因此变量符号表其实就是`std::map<std::string, llvm::Value*>`类：
-
-```C++
-//VariableTable class
-//Since LLVM doesn't support visiting all variables explicitly,
-//we need to implement it manually.
-using VariableTable = std::map<std::string, llvm::Value*>;
-```
-
-然后利用`std::vector`实现变量符号表栈：
-
-```C++
-std::vector<VariableTable*> CodeGenerator::VariableStack;	//Variable symbol table
-```
-
-相关操作（新符号表压栈、删除栈顶符号表、查找变量、添加变量）：
-
-```C++
-//Create and push an empty VariableTable
-void CodeGenerator::PushVariableTable(void);
-//Remove the last VariableTable
-void CodeGenerator::PopVariableTable(void);
-//Find variable
-llvm::Value* CodeGenerator::FindVariable(std::string Name);
-//Add an item to the current variable symbol table
-//If an old value exists (i.e., conflict), return false
-bool CodeGenerator::AddVariable(std::string Name, llvm::Value* Variable);
-
-```
-
-##### 3.2.3.2 类型符号表栈
-
-类型符号表将`typedef`指定的别名和对应的`llvm::Type*`实例一一对应。
-
-因此类型符号表其实就是`std::map<std::string, llvm::Type*>`类：
-
-```C++
-//TypedefTable class
-//Since LLVM doesn't support "typedef" explicitly,
-//we need to implement it manually.
-using TypedefTable = std::map<std::string, llvm::Type*>;
-```
-
-然后利用`std::vector`实现类型符号表栈：
-
-```C++
-std::vector<TypedefTable*> CodeGenerator::TypedefStack;			//Typedef symbol table
-```
-
-相关操作（新符号表压栈、删除栈顶符号表、查找类型、添加类型）：
-
-```C++
-//Create and push an empty TypedefTable
-void CodeGenerator::PushTypedefTable(void);
-//Remove the last TypedefTable
-void CodeGenerator::PopTypedefTable(void);
-//Find the AST::VarType* instance for the given name
-llvm::Type* CodeGenerator::FindType(std::string Name);
-//Add an item to the current typedef symbol table
-//If an old value exists (i.e., conflict), return false
-bool CodeGenerator::AddType(std::string Name, llvm::Type* Type);
-```
+  
+  ```C++
+  	//Symbol table
+  	class Symbol {
+  	public:
+  		Symbol(void) : Content(NULL), Type(UNDEFINED) {}
+  		Symbol(llvm::Function* Func) : Content(Func), Type(FUNCTION) {}
+  		Symbol(llvm::Type* Ty) : Content(Ty), Type(TYPE) {}
+  		Symbol(llvm::Value* Value, bool isConst) : Content(Value), Type(isConst ? CONSTANT : VARIABLE) {}
+  		llvm::Function* GetFunction(void) { return this->Type == FUNCTION ? (llvm::Function*)Content : NULL; }
+  		llvm::Type* GetType(void) { return this->Type == TYPE ? (llvm::Type*)Content : NULL; }
+  		llvm::Value* GetVariable(void) { return this->Type == VARIABLE ? (llvm::Value*)Content : NULL; }
+  		llvm::Value* GetConstant(void) { return this->Type == CONSTANT ? (llvm::Value*)Content : NULL; }
+  	private:
+  		void* Content;
+  		enum {
+  			FUNCTION,
+  			TYPE,
+  			VARIABLE,
+  			CONSTANT,
+  			UNDEFINED
+  		} Type;
+  	};
+  	using SymbolTable = std::map<std::string, Symbol>;
+  ```
+  
+  相关操作：
+  
+  ```C++
+  	//Create and push an empty symbol table
+  	void CodeGenerator::PushSymbolTable(void);
+  
+  	//Remove the last symbol table
+  	void CodeGenerator::PopSymbolTable(void);
+  
+  	//Find the llvm::Function* instance for the given name
+  	llvm::Function* CodeGenerator::FindFunction(std::string Name);
+  
+  	//Add a function to the current symbol table
+  	//If an old value exists (i.e., conflict), return false
+  	bool CodeGenerator::AddFunction(std::string Name, llvm::Function* Function);
+  
+  	//Find the llvm::Type* instance for the given name
+  	llvm::Type* CodeGenerator::FindType(std::string Name);
+  
+  	//Add a type to the current symbol table
+  	//If an old value exists (i.e., conflict), return false
+  	bool CodeGenerator::AddType(std::string Name, llvm::Type* Type);
+  
+  	//Find variable
+  	llvm::Value* CodeGenerator::FindVariable(std::string Name);
+  
+  	//Add a variable to the current symbol table
+  	//If an old value exists (i.e., conflict), return false
+  	bool CodeGenerator::AddVariable(std::string Name, llvm::Value* Variable);
+  
+  	//Find constant
+  	llvm::Value* CodeGenerator::FindConstant(std::string Name);
+  
+  	//Add a constant to the current symbol table
+  	//If an old value exists (i.e., conflict), return false
+  	bool CodeGenerator::AddConstant(std::string Name, llvm::Value* Constant);
+  ```
 
 #### 3.2.4 记录当前函数
 
@@ -907,7 +983,7 @@ void CodeGenerator::LeaveLoop(void) {
 }
 ```
 
-#### 3.2.6 结构体映射表
+#### 3.2.6 结构体/共用体映射表
 
 LLVM虽然支持结构体类型，但`llvm::StructType`类不支持成员变量命名。LLVM-IR只支持使用成员变量的索引来访问结构体。例如，假设我们有`struct {int x, y; double z;}`类型的变量`P`。在C语言中，我们使用`P.z`来访问成员变量`z`，但是LLVM只支持使用索引`2`来访问其第三个成员。
 
@@ -926,13 +1002,15 @@ struct {int x, y;} test(void){
 
 因此，不存在结构体类型的相互覆盖问题。相应的，如果我们在LLVM中也是使用Identified structure而非Literal structure，那么得到的`llvm::Value*`实例也是独一无二的。
 
-我们只需要用一个映射表即可：
+我们只需要用一个映射表即可。同理，共用体也是这样（共用体其实就是特殊的结构体）
 
 ```C++
-//Since llvm's structs' members don't have names, we need to implement it manually.
-//Our solution is creating a mapping from llvm::StructType* to AST::StructType*
-using IdentifiedStructTypeTable = std::map<llvm::StructType*, AST::StructType*>;
-IdentifiedStructTypeTable* CodeGenerator::StructTypeTable;	//Struct type table
+	//Since llvm's structs' members don't have names, we need to implement it manually.
+	//Our solution is creating a mapping from llvm::StructType* to AST::StructType*
+	using StructTypeTable = std::map<llvm::StructType*, AST::StructType*>;
+
+	//Union type in C can be treated as a special kind of struct type.
+	using UnionTypeTable = std::map<llvm::StructType*, AST::UnionType*>;
 ```
 
 ### 3.3 全局域
@@ -953,9 +1031,9 @@ Decl ->			FuncDecl | VarDecl | TypeDecl | ε
 //Pass the root of the ast to this function and generate code
 void CodeGenerator::GenerateCode(AST::Program& Root, const std::string& OptimizeLevel) {
 	//Initialize symbol table
-	this->StructTypeTable = new IdentifiedStructTypeTable;
-	this->PushTypedefTable();
-	this->PushVariableTable();
+	this->StructTyTable = new StructTypeTable;
+	this->UnionTyTable = new UnionTypeTable;
+	this->PushSymbolTable();
 
 	//Create a temp function and a temp block for global instruction code generation
 	this->TmpFunc = llvm::Function::Create(llvm::FunctionType::get(IRBuilder.getVoidTy(), false), llvm::GlobalValue::InternalLinkage, "0Tmp", this->Module);
@@ -970,9 +1048,9 @@ void CodeGenerator::GenerateCode(AST::Program& Root, const std::string& Optimize
 	this->TmpFunc->eraseFromParent();
 
 	//Delete symbol table
-	this->PopTypedefTable();
-	this->PopVariableTable();
-	delete this->StructTypeTable; this->StructTypeTable = NULL;
+	this->PopSymbolTable();
+	delete this->StructTyTable; this->StructTyTable = NULL;
+	delete this->UnionTyTable; this->UnionTyTable = NULL;
 }
 ```
 
@@ -1920,7 +1998,54 @@ _VarType ->		BuiltInType |
 	}
 ```
 
-#### 3.5.3 EnumType类
+#### 3.5.5 UnionType类
+
+C语言的共用体在实现上其实就是特殊的结构体。我们只要找到占用内存最大的成员变量，并为其开辟空间即可。当使用结构体时，要对指针做强制类型转换：
+
+```C++
+	//Union type.
+	llvm::Type* UnionType::GetLLVMType(CodeGenerator& __Generator) {
+		if (this->_LLVMType)
+			return this->_LLVMType;
+		//Create an anonymous identified struct type
+		this->GenerateLLVMTypeHead(__Generator);
+		return this->GenerateLLVMTypeBody(__Generator);
+	}
+	llvm::Type* UnionType::GenerateLLVMTypeHead(CodeGenerator& __Generator, const std::string& __Name) {
+		//Firstly, generate an empty identified struct type
+		auto LLVMType = llvm::StructType::create(Context, "union." + __Name);
+		//Add to the union table
+		__Generator.AddUnionType(LLVMType, this);
+		return this->_LLVMType = LLVMType;
+	}
+	llvm::Type* UnionType::GenerateLLVMTypeBody(CodeGenerator& __Generator) {
+		//Secondly, generate its body
+		if (this->_UnionBody->size() == 0) return this->_LLVMType;
+		//Find the member of the max size
+		size_t MaxSize = 0;
+		llvm::Type* MaxSizeType = NULL;
+		for (auto FDecl : *(this->_UnionBody))
+			if (FDecl->_VarType->GetLLVMType(__Generator)->isVoidTy()) {
+				throw std::logic_error("The member type of union cannot be void.");
+				return NULL;
+			}
+			else if (__Generator.GetTypeSize(FDecl->_VarType->GetLLVMType(__Generator)) > MaxSize) {
+				MaxSizeType = FDecl->_VarType->GetLLVMType(__Generator);
+				MaxSize = __Generator.GetTypeSize(MaxSizeType);
+			}
+		((llvm::StructType*)this->_LLVMType)->setBody(std::vector<llvm::Type*>{MaxSizeType});
+		return this->_LLVMType;
+	}
+	llvm::Type* UnionType::GetElementType(const std::string& __MemName, CodeGenerator& __Generator) {
+		for (auto FDecl : *(this->_UnionBody))
+			for (auto& MemName : *(FDecl->_MemList))
+				if (MemName == __MemName)
+					return FDecl->_VarType->GetLLVMType(__Generator);
+		return NULL;
+	}
+```
+
+#### 3.5.4 EnumType类
 
 C语言的`enum`类型的定义方式如下：
 
@@ -1935,7 +2060,7 @@ enum {
 };
 ```
 
-`enum`的成员可以赋指定值，也可以不指定。当不指定时，就默认是上一个成员的值+1。因此，代码如下：
+`enum`的成员可以赋指定值，也可以不指定。当不指定时，就默认是上一个成员的值+1。最后，要把枚举类型的成员作为常数加入到符号表。因此，代码如下：
 
 ```C++
 	//Enum type
@@ -1945,18 +2070,24 @@ enum {
 		//Generate the body of the enum type
 		int LastVal = -1;
 		for (auto Mem : *(this->_EnmList))
-			if (Mem->_hasValue)
+			if (Mem->_hasValue) {
 				LastVal = Mem->_Value;
+			}
 			else {
-				Mem->_hasValue = true;
 				Mem->_Value = ++LastVal;
+			}
+		//Add constants to the symbol table
+		for (auto Mem : *(this->_EnmList))
+			if (!__Generator.AddConstant(Mem->_Name, IRBuilder.getInt32(Mem->_Value))) {
+				throw std::logic_error("Redefining symbol \"" + Mem->_Name + "\".");
+				return NULL;
 			}
 		//Enum type is actually an int32 type.
 		return llvm::IntegerType::getInt32Ty(Context);
 	}
 ```
 
-#### 3.5.4 ArrayType类
+#### 3.5.5 ArrayType类
 
 对于数组类型，我们首先需要知道它的基类。我们用`AST::VarType*`指针指向其基类。其基类可以是任意数据类型，甚至也可以是一个数组（这样实现的就是高维数组）。
 
@@ -1978,7 +2109,7 @@ enum {
 	}
 ```
 
-#### 3.5.5 PointerType类
+#### 3.5.6 PointerType类
 
 指针类型和数组类型类似，我们也需要知道其基类。然后我们调用`llvm::PointerType::get`接口创建一个指针类型：
 
@@ -1992,7 +2123,7 @@ enum {
 	}
 ```
 
-#### 3.5.6 DefinedType类
+#### 3.5.7 DefinedType类
 
 若类型只是一个Identifier，且不是我们预设的八种类型之一，说明它是用户自定义的一种类型。此时，只需要根据其名字，在符号表中查找即可：
 
@@ -2010,11 +2141,11 @@ enum {
 	}
 ```
 
-#### 3.5.7 类型转换
+#### 3.5.8 类型转换
 
 LLVM-IR和C语言一样，也是强类型语言。不同的是LLVM不支持类型转换，但C语言可以。因此，我们需要完成这一部分内容。
 
-##### 3.5.7.1 强制类型转换
+##### 3.5.8.1 强制类型转换
 
 强制类型转换表示把**一个值**强制转换到**一个类型**。强制类型转换支持以下几种情况：
 
@@ -2095,7 +2226,7 @@ llvm::Value* TypeCasting(llvm::Value* Value, llvm::Type* Type) {
 }
 ```
 
-##### 3.5.7.2 类型升级
+##### 3.5.8.2 类型升级
 
 类型升级表示把**两个值**升级到同一类型。类型的优先级为：
 
@@ -2154,7 +2285,7 @@ bool TypeUpgrading(llvm::Value*& Value1, llvm::Value*& Value2) {
 }
 ```
 
-##### 3.5.7.3 无法类型转换的情况
+##### 3.5.8.3 无法类型转换的情况
 
 以下情况无法进行类型转换。需要用户显示地指明强制类型转换：
 
@@ -2448,20 +2579,15 @@ sizeof(a);	//What is "a"? A type name or a variable?
 作用在数组上时，调用`IRBuilder.CreateGEP`接口即可。作用在指针上时，需要对指针进行加法，然后直接返回加法后的指针（因为我们要返回“右值”）：
 
 ```C++
-	//Subscript, e.g. a[10]
+	//Subscript, e.g. a[10], b[2][3]
 	llvm::Value* Subscript::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* Subscript::CodeGenPtr(CodeGenerator& __Generator) {
-		//Get the pointer pointing to the array
+		//Get the pointer
 		llvm::Value* ArrayPtr = this->_Array->CodeGen(__Generator);
-		if (!ArrayPtr) {
-			throw std::logic_error("Subscription must be used to a left-value.");
+		if (!ArrayPtr->getType()->isPointerTy()) {
+			throw std::logic_error("Subscript operator \"[]\" must be applied to pointers or arrays.");
 			return NULL;
 		}
 		//Get the index value
@@ -2470,21 +2596,8 @@ sizeof(a);	//What is "a"? A type name or a variable?
 			throw std::logic_error("Subscription should be an integer.");
 			return NULL;
 		}
-		//If "ArrayPtr" points to an array, use CreateGEP.
-		//Otherwise, use pointer addition.
-		if (ArrayPtr->getType()->getNonOpaquePointerElementType()->isArrayTy()) {
-			std::vector<llvm::Value*> Index;
-			Index.push_back(IRBuilder.getInt32(0));
-			Index.push_back(Subspt);
-			return IRBuilder.CreateGEP(
-				ArrayPtr->getType()->getNonOpaquePointerElementType(),
-				ArrayPtr,
-				Index
-			);
-		}
-		else {
-			return CreateAdd(ArrayPtr, Subspt, __Generator);
-		}
+		//Return pointer addition
+		return CreateAdd(ArrayPtr, Subspt, __Generator);
 	}
 ```
 
@@ -2492,65 +2605,85 @@ sizeof(a);	//What is "a"? A type name or a variable?
 
 C语言中，取结构体的元素是通过元素名进行的。但在LLVM中，是通过元素的下标序号进行的。这是因为LLVM的结构体的成员没有名字（上文已经介绍过）。
 
-因此，我们需要先从结构体映射表中找到对应的`AST::StructType*`实例，然后查询元素名对应的下标序号。然后调用`IRBuilder.CreateGEP`接口：
+因此，我们需要先从结构体映射表中找到对应的`AST::StructType*`实例，然后查询元素名对应的下标序号。然后调用`IRBuilder.CreateGEP`接口。
+
+此外，在C语言中，`.`和`->`不仅可以作用于结构体（指针），还可以作用域共用体（指针）。因此，程序需要在结构体映射表和共用体映射表中各查询一次。
 
 ```C++
 	//Structure reference, e.g. a.x, a.y
 	llvm::Value* StructReference::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* StructReference::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* StructPtr = this->_Struct->CodeGenPtr(__Generator);
 		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
-			throw std::logic_error("Struct reference operator \".\" must be apply to struct pointers.");
+			throw std::logic_error("Reference operator \".\" must be apply to structs or unions.");
 			return NULL;
 		}
 		//Since C language uses name instead of index to fetch the element inside a struct,
 		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		//And it is the same with union types.
 		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
-		int MemIndex = StructType->GetElementIndex(this->_MemName);
-		if (MemIndex == -1) {
-			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
-			return NULL;
+		if (StructType) {
+			int MemIndex = StructType->GetElementIndex(this->_MemName);
+			if (MemIndex == -1) {
+				throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			std::vector<llvm::Value*> Indices;
+			Indices.push_back(IRBuilder.getInt32(0));
+			Indices.push_back(IRBuilder.getInt32(MemIndex));
+			return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 		}
-		std::vector<llvm::Value*> Indices;
-		Indices.push_back(IRBuilder.getInt32(0));
-		Indices.push_back(IRBuilder.getInt32(MemIndex));
-		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+		AST::UnionType* UnionType = __Generator.FindUnionType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		if (UnionType) {
+			llvm::Type* MemType = UnionType->GetElementType(this->_MemName, __Generator);
+			if (MemType == NULL) {
+				throw std::logic_error("The union doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			return IRBuilder.CreatePointerCast(StructPtr, MemType->getPointerTo());
+		}
+		throw std::logic_error("Compiler internal error. Maybe the designer forgets to update StructTypeTable or UnionTypeTable");
+		return NULL;
 	}
 
 	//Structure dereference, e.g. a->x, a->y
 	llvm::Value* StructDereference::CodeGen(CodeGenerator& __Generator) {
-		llvm::Value* LValue = this->CodeGenPtr(__Generator);
-		//For array types, just return its pointer directly
-		if (LValue->getType()->getNonOpaquePointerElementType()->isArrayTy())
-			return LValue;
-		else
-			return IRBuilder.CreateLoad(LValue->getType()->getNonOpaquePointerElementType(), LValue);
+		return CreateLoad(this->CodeGenPtr(__Generator), __Generator);
 	}
 	llvm::Value* StructDereference::CodeGenPtr(CodeGenerator& __Generator) {
 		llvm::Value* StructPtr = this->_StructPtr->CodeGen(__Generator);
 		if (!StructPtr->getType()->isPointerTy() || !StructPtr->getType()->getNonOpaquePointerElementType()->isStructTy()) {
-			throw std::logic_error("Struct dereference operator \"->\" must be apply to struct pointers.");
+			throw std::logic_error("Dereference operator \"->\" must be apply to struct or union pointers.");
 			return NULL;
 		}
 		//Since C language uses name instead of index to fetch the element inside a struct,
 		//we need to fetch the AST::StructType* instance according to the llvm::StructType* instance.
+		//And it is the same with union types.
 		AST::StructType* StructType = __Generator.FindStructType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
-		int MemIndex = StructType->GetElementIndex(this->_MemName);
-		if (MemIndex == -1) {
-			throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
-			return NULL;
+		if (StructType) {
+			int MemIndex = StructType->GetElementIndex(this->_MemName);
+			if (MemIndex == -1) {
+				throw std::logic_error("The struct doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			std::vector<llvm::Value*> Indices;
+			Indices.push_back(IRBuilder.getInt32(0));
+			Indices.push_back(IRBuilder.getInt32(MemIndex));
+			return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
 		}
-		std::vector<llvm::Value*> Indices;
-		Indices.push_back(IRBuilder.getInt32(0));
-		Indices.push_back(IRBuilder.getInt32(MemIndex));
-		return IRBuilder.CreateGEP(StructPtr->getType()->getNonOpaquePointerElementType(), StructPtr, Indices);
+		AST::UnionType* UnionType = __Generator.FindUnionType((llvm::StructType*)StructPtr->getType()->getNonOpaquePointerElementType());
+		if (UnionType) {
+			llvm::Type* MemType = UnionType->GetElementType(this->_MemName, __Generator);
+			if (MemType == NULL) {
+				throw std::logic_error("The union doesn't have a member whose name is \"" + this->_MemName + "\".");
+				return NULL;
+			}
+			return IRBuilder.CreatePointerCast(StructPtr, MemType->getPointerTo());
+		}
+		throw std::logic_error("Compiler internal error. Maybe the designer forgets to update StructTypeTable or UnionTypeTable");
+		return NULL;
 	}
 ```
 
@@ -2833,3 +2966,1869 @@ void CodeGenerator::GenObjectCode(std::string FileName) {
 ```
 
 ## 六、测试案例
+
+### 6.1 数据类型测试
+
+#### 6.1.1 内置类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+bool a = true;
+short b = 12;
+int c = -2;
+long d = 123456789;
+char e = 'a';
+float f = 1.0;
+double g =2.1;
+void main(void)
+{
+    printf("%d\n",a);
+    printf("%hd\n",b);
+    printf("%d\n",c);
+    printf("%ld\n",d);
+    printf("%c\n",e);
+    printf("%f\n",f);
+    printf("%lf\n",g);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast1.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@a = global i1 true
+@b = global i16 12
+@c = global i32 -2
+@d = global i64 123456789
+@e = global i8 97
+@f = global float 1.000000e+00
+@g = global double 2.100000e+00
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [5 x i8] c"%hd\0A\00", align 1
+@2 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@3 = private unnamed_addr constant [5 x i8] c"%ld\0A\00", align 1
+@4 = private unnamed_addr constant [4 x i8] c"%c\0A\00", align 1
+@5 = private unnamed_addr constant [4 x i8] c"%f\0A\00", align 1
+@6 = private unnamed_addr constant [5 x i8] c"%lf\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %0 = load i1, i1* @a, align 1
+  %1 = zext i1 %0 to i32
+  %2 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %1)
+  %3 = load i16, i16* @b, align 2
+  %4 = sext i16 %3 to i32
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @1, i32 0, i32 0), i32 %4)
+  %6 = load i32, i32* @c, align 4
+  %7 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @2, i32 0, i32 0), i32 %6)
+  %8 = load i64, i64* @d, align 4
+  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @3, i32 0, i32 0), i64 %8)
+  %10 = load i8, i8* @e, align 1
+  %11 = sext i8 %10 to i32
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @4, i32 0, i32 0), i32 %11)
+  %13 = load float, float* @f, align 4
+  %14 = fpext float %13 to double
+  %15 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @5, i32 0, i32 0), double %14)
+  %16 = load double, double* @g, align 8
+  %17 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @6, i32 0, i32 0), double %16)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res1.png)
+
+#### 6.1.2 struct类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+typedef struct{
+    int a;
+    char b;
+    double c;
+}abc;
+
+void main(void)
+{
+    abc X;
+    X.a = 1;
+    X.b = 'b';
+    X.c = 1.0;
+    printf("%d\n",X.a);
+    printf("%c\n",X.b);
+    printf("%lf\n",X.c);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast2.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+%abc = type { i32, i8, double }
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [4 x i8] c"%c\0A\00", align 1
+@2 = private unnamed_addr constant [5 x i8] c"%lf\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %X = alloca %abc, align 8
+  %0 = bitcast %abc* %X to i32*
+  store i32 1, i32* %0, align 4
+  %1 = load i32, i32* %0, align 4
+  %2 = getelementptr %abc, %abc* %X, i32 0, i32 1
+  store i8 98, i8* %2, align 1
+  %3 = load i8, i8* %2, align 1
+  %4 = getelementptr %abc, %abc* %X, i32 0, i32 2
+  store double 1.000000e+00, double* %4, align 8
+  %5 = load double, double* %4, align 8
+  %6 = bitcast %abc* %X to i32*
+  %7 = load i32, i32* %6, align 4
+  %8 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %7)
+  %9 = getelementptr %abc, %abc* %X, i32 0, i32 1
+  %10 = load i8, i8* %9, align 1
+  %11 = sext i8 %10 to i32
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %11)
+  %13 = getelementptr %abc, %abc* %X, i32 0, i32 2
+  %14 = load double, double* %13, align 8
+  %15 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @2, i32 0, i32 0), double %14)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res2.png)
+
+#### 6.1.3 Enum和Union类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+typedef enum
+{
+      MON=1, TUE, WED=3, THU, FRI, SAT, SUN
+}DAY;
+
+typedef union{
+    int n;
+    char ch;
+    long m;
+}DATA;
+
+void main(void)
+{
+    DAY day;
+    DATA data;
+    day = WED;
+    printf("%d\n", day);
+    data.n = 97;
+    printf("%d %c %ld\n", data.n, data.ch, data.m);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast3.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+%union.DATA = type { i64 }
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [11 x i8] c"%d %c %ld\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %data = alloca %union.DATA, align 8
+  %day = alloca i32, align 4
+  store i32 3, i32* %day, align 4
+  %0 = load i32, i32* %day, align 4
+  %1 = load i32, i32* %day, align 4
+  %2 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %1)
+  %3 = bitcast %union.DATA* %data to i32*
+  store i32 97, i32* %3, align 4
+  %4 = load i32, i32* %3, align 4
+  %5 = bitcast %union.DATA* %data to i32*
+  %6 = load i32, i32* %5, align 4
+  %7 = bitcast %union.DATA* %data to i8*
+  %8 = load i8, i8* %7, align 1
+  %9 = sext i8 %8 to i32
+  %10 = bitcast %union.DATA* %data to i64*
+  %11 = load i64, i64* %10, align 4
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([11 x i8], [11 x i8]* @1, i32 0, i32 0), i32 %6, i32 %9, i64 %11)
+  ret void
+}
+*****************  Verification  *****************
+No errors.
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res3.png)
+
+#### 6.1.4 数组类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int array(5) a;    //一维数组
+double array(10) array(10) b;    //二维数组
+
+void main(void)
+{
+    a[0] = 1;
+    b[1][1] = 2.0;
+    printf("%d\n",a[0]);
+    printf("%lf\n",b[1][1]);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast4.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@a = global [5 x i32] undef
+@b = global [10 x [10 x double]] undef
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [5 x i8] c"%lf\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  store i32 1, i32* getelementptr inbounds ([5 x i32], [5 x i32]* @a, i32 0, i32 0), align 4
+  %0 = load i32, i32* getelementptr inbounds ([5 x i32], [5 x i32]* @a, i32 0, i32 0), align 4
+  store double 2.000000e+00, double* getelementptr inbounds ([10 x [10 x double]], [10 x [10 x double]]* @b, i32 0, i32 1, i32 1), align 8
+  %1 = load double, double* getelementptr inbounds ([10 x [10 x double]], [10 x [10 x double]]* @b, i32 0, i32 1, i32 1), align 8
+  %2 = load i32, i32* getelementptr inbounds ([5 x i32], [5 x i32]* @a, i32 0, i32 0), align 4
+  %3 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %2)
+  %4 = load double, double* getelementptr inbounds ([10 x [10 x double]], [10 x [10 x double]]* @b, i32 0, i32 1, i32 1), align 8
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @1, i32 0, i32 0), double %4)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res4.png)
+
+#### 6.1.5 指针类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int ptr pointer;    //指针变量
+int array(3) array(5) a;
+int array(5) ptr b;    //数组指针
+char ptr array(10) c;    //指针数组
+typedef struct{
+    char a;
+}def;
+
+typedef def ptr pdef;    //结构指针
+
+void main(void)
+{
+    int x = 1;
+    pdef y;
+    pointer = &x;
+    a[0][0] = 2;
+    a[0][1] = 3;
+    b = a;
+    c[0] = "Hello";
+    y->a = 'a';
+    printf("%d\n",*pointer);
+    printf("%d\n",b[0]);
+    printf("%d\n",b[1]);
+    printf("%s\n",c[0]);
+    printf("%c\n",y->a);
+}
+```
+
+2、AST
+
+![ast5](.\images\AST_Visualization\ast5.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+%def = type { i8 }
+
+@pointer = global i32* undef
+@a = global [5 x [3 x i32]] undef
+@b = global [5 x i32]* undef
+@c = global [10 x i8*] undef
+@0 = private unnamed_addr constant [6 x i8] c"Hello\00", align 1
+@1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@2 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@3 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@4 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
+@5 = private unnamed_addr constant [4 x i8] c"%c\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %y = alloca %def*, align 8
+  %x = alloca i32, align 4
+  store i32 1, i32* %x, align 4
+  store i32* %x, i32** @pointer, align 8
+  %0 = load i32*, i32** @pointer, align 8
+  store i32 2, i32* getelementptr inbounds ([5 x [3 x i32]], [5 x [3 x i32]]* @a, i32 0, i32 0, i32 0), align 4
+  %1 = load i32, i32* getelementptr inbounds ([5 x [3 x i32]], [5 x [3 x i32]]* @a, i32 0, i32 0, i32 0), align 4
+  store i32 3, i32* getelementptr inbounds ([5 x [3 x i32]], [5 x [3 x i32]]* @a, i32 0, i32 0, i32 1), align 4
+  %2 = load i32, i32* getelementptr inbounds ([5 x [3 x i32]], [5 x [3 x i32]]* @a, i32 0, i32 0, i32 1), align 4
+  store [5 x i32]* bitcast ([5 x [3 x i32]]* @a to [5 x i32]*), [5 x i32]** @b, align 8
+  %3 = load [5 x i32]*, [5 x i32]** @b, align 8
+  store i8* getelementptr inbounds ([6 x i8], [6 x i8]* @0, i32 0, i32 0), i8** getelementptr inbounds ([10 x i8*], [10 x i8*]* @c, i32 0, i32 0), align 8
+  %4 = load i8*, i8** getelementptr inbounds ([10 x i8*], [10 x i8*]* @c, i32 0, i32 0), align 8
+  %5 = load %def*, %def** %y, align 8
+  %6 = bitcast %def* %5 to i8*
+  store i8 97, i8* %6, align 1
+  %7 = load i8, i8* %6, align 1
+  %8 = load i32*, i32** @pointer, align 8
+  %9 = load i32, i32* %8, align 4
+  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %9)
+  %11 = load [5 x i32]*, [5 x i32]** @b, align 8
+  %12 = bitcast [5 x i32]* %11 to i32*
+  %13 = load i32, i32* %12, align 4
+  %14 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @2, i32 0, i32 0), i32 %13)
+  %15 = load [5 x i32]*, [5 x i32]** @b, align 8
+  %16 = getelementptr [5 x i32], [5 x i32]* %15, i32 0, i32 1
+  %17 = load i32, i32* %16, align 4
+  %18 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @3, i32 0, i32 0), i32 %17)
+  %19 = load i8*, i8** getelementptr inbounds ([10 x i8*], [10 x i8*]* @c, i32 0, i32 0), align 8
+  %20 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @4, i32 0, i32 0), i8* %19)
+  %21 = load %def*, %def** %y, align 8
+  %22 = bitcast %def* %21 to i8*
+  %23 = load i8, i8* %22, align 1
+  %24 = sext i8 %23 to i32
+  %25 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @5, i32 0, i32 0), i32 %24)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res5.png)
+
+#### 6.1.6 自定义类型测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+void ptr malloc(long);
+
+typedef struct {
+	Node ptr Left, Right;    //自定义类型
+	int Value, AVL;
+} Node;
+
+typedef Node ptr pNode;
+
+void main(void)
+{
+    pNode T;    //自定义类型
+    T = (pNode)malloc(sizeof(Node));
+    T -> Value = 1;
+    printf("%d\n",T -> Value);
+}
+```
+
+2、AST
+
+![ast5](.\images\AST_Visualization\ast6.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+%Node = type { %Node*, %Node*, i32, i32 }
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+declare void* @malloc(i64)
+
+define void @main() {
+entry:
+  %T = alloca %Node*, align 8
+  %0 = call void* @malloc(i64 24)
+  %1 = bitcast void* %0 to %Node*
+  store %Node* %1, %Node** %T, align 8
+  %2 = load %Node*, %Node** %T, align 8
+  %3 = load %Node*, %Node** %T, align 8
+  %4 = getelementptr %Node, %Node* %3, i32 0, i32 2
+  store i32 1, i32* %4, align 4
+  %5 = load i32, i32* %4, align 4
+  %6 = load %Node*, %Node** %T, align 8
+  %7 = getelementptr %Node, %Node* %6, i32 0, i32 2
+  %8 = load i32, i32* %7, align 4
+  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %8)
+  ret void
+}
+```
+
+4、运行结果
+
+![!(.\images\AST_Visualization\res5.png)](.\images\AST_Visualization\res6.png)
+
+#### 6.1.7 类型转换测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+void main(void)
+{
+    char a = 'a';
+    double b = 1.0;
+    printf("%d\n", a);    //类型升级
+    printf("%d\n", (int)b);    //强制类型转换
+}
+```
+
+2、AST
+
+![ast5](.\images\AST_Visualization\ast7.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %b = alloca double, align 8
+  %a = alloca i8, align 1
+  store i8 97, i8* %a, align 1
+  store double 1.000000e+00, double* %b, align 8
+  %0 = load i8, i8* %a, align 1
+  %1 = sext i8 %0 to i32
+  %2 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %1)
+  %3 = load double, double* %b, align 8
+  %4 = fptosi double %3 to i32
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %4)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res7.png)
+
+### 6.2 表达式测试
+
+#### 6.2.1 右值
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+int add(int a, int b)
+{
+    return a + b;
+}
+
+void main(void)
+{
+    int a = -2;    //Constant类
+    int b = 2;
+    char ptr c = "Global String";    //GlobalString类
+    int d = add(a, b);    //FunctionCall类
+    double e = 3.0;
+    int f = (int)e;    //TypeCast类
+    int g = sizeof(a);    //Sizeof类
+    a++;    //PostfixInc类
+    b--;    //PostfixDec类
+    int ptr h = &a;    //Addressof类
+    
+    //其他运算符，每类各选取几种代表的运算符
+    //一元+，一元-
+    int unaryPlus = +a;
+    int unaryMinus = -b;
+    //位运算
+    int bitwiseOR = a | b;
+    int bitwiseAnd = a & b;
+    //逻辑运算
+    int logicOR = a || b;
+    int logicAnd = a && b;
+    //比较运算
+    int logicGT = (a > b);
+    int logicLE = (a <= b);
+    //算术运算
+    int add = a + b;
+    int sub = a - b;
+    int mul = a * b;
+    int div = a / b;
+    int mod = a % b;
+    //移位运算符
+    int SHL = a << 1;
+    int SHR = b >> 1;
+    
+    printf("%d\n", a);    
+    printf("%d\n", b); 
+    printf("%s\n", c);
+    printf("%d\n", d);
+    printf("%lf\n", e);
+    printf("%d\n", f);
+    printf("%d\n", g);
+    printf("%d\n", unaryPlus);
+    printf("%d\n", unaryMinus);
+    printf("%d\n", bitwiseOR);
+    printf("%d\n", bitwiseAnd);
+    printf("%d\n", logicOR);
+    printf("%d\n", logicAnd);
+    printf("%d\n", logicOR);
+    printf("%d\n", logicGT);
+    printf("%d\n", logicLE);
+    printf("%d\n", add);
+    printf("%d\n", sub);
+    printf("%d\n", mul);
+    printf("%d\n", div);
+    printf("%d\n", mod);
+    printf("%d\n", SHL);
+    printf("%d\n", SHR);
+}
+```
+
+2、AST
+
+![ast5](.\images\AST_Visualization\ast8.png)
+
+3、IR
+
+由于生成的IR代码过长，因此不赘述。
+
+4、运行结果
+
+![](.\images\AST_Visualization\res8.png)
+
+#### 6.2.2 左值
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+void ptr malloc(long);
+
+typedef struct{
+    int a;
+}B;
+
+typedef B ptr C;
+
+void main(void)
+{
+    int array(5) a;
+    a[0] = 1;   //Subscript类
+    B b;
+    C c = (C)malloc(sizeof(C));
+    b.a = 2;    //StructReference类
+    c->a = 3;   //StructDeference类
+    int d = 4;
+    int ptr e = &d;
+    *e = 5; //Indirection类
+    ++a[0]; //PrefixInc类
+    --a[0]; //PrefixDec类
+    ((a[1] = 1) += 2) %= 3;    //DirectAssign类
+    
+    printf("%d\n", a[0]);
+    printf("%d\n", a[1]);     
+    printf("%d\n", b.a); 
+    printf("%d\n", c->a);
+    printf("%d\n", d);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast9.png)
+
+3、IR
+
+由于生成的IR代码过长，因此不赘述。
+
+4、运行结果
+
+![](.\images\AST_Visualization\res9.png)
+
+#### 6.2.3 特殊表达式
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+void main(void)
+{
+    int a = 5;
+    int b = 6;
+    bool c = (a != b);
+    //TernaryCondition类
+    a = (c ? 1 : b); //右值
+    (!c ? a : b) = 2;//左值
+
+    //CommaExpr类
+    int d = (a, b, c, 3);   //右值
+    int e;
+    (a, b, c, d, e) = 4;    //左值
+    
+    printf("%d\n", a);
+    printf("%d\n", b);
+    printf("%d\n", d);  
+    printf("%d\n", e);   
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast10.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@2 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@3 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %e = alloca i32, align 4
+  %d = alloca i32, align 4
+  %c = alloca i1, align 1
+  %b = alloca i32, align 4
+  %a = alloca i32, align 4
+  store i32 5, i32* %a, align 4
+  store i32 6, i32* %b, align 4
+  %0 = load i32, i32* %a, align 4
+  %1 = load i32, i32* %b, align 4
+  %2 = icmp ne i32 %0, %1
+  store i1 %2, i1* %c, align 1
+  %3 = load i1, i1* %c, align 1
+  %4 = load i32, i32* %b, align 4
+  %5 = select i1 %3, i32 1, i32 %4
+  store i32 %5, i32* %a, align 4
+  %6 = load i32, i32* %a, align 4
+  %7 = load i1, i1* %c, align 1
+  %8 = icmp eq i1 %7, false
+  %9 = select i1 %8, i32* %a, i32* %b
+  store i32 2, i32* %9, align 4
+  %10 = load i32, i32* %9, align 4
+  %11 = load i32, i32* %a, align 4
+  %12 = load i32, i32* %b, align 4
+  %13 = load i1, i1* %c, align 1
+  store i32 3, i32* %d, align 4
+  %14 = load i32, i32* %a, align 4
+  %15 = load i32, i32* %b, align 4
+  %16 = load i1, i1* %c, align 1
+  %17 = load i32, i32* %d, align 4
+  store i32 4, i32* %e, align 4
+  %18 = load i32, i32* %e, align 4
+  %19 = load i32, i32* %a, align 4
+  %20 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %19)
+  %21 = load i32, i32* %b, align 4
+  %22 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %21)
+  %23 = load i32, i32* %d, align 4
+  %24 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @2, i32 0, i32 0), i32 %23)
+  %25 = load i32, i32* %e, align 4
+  %26 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @3, i32 0, i32 0), i32 %25)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res10.png)
+
+### 6.3 语句测试
+
+#### 6.3.1 If语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+
+void main(void)
+{
+    char c;
+    printf("input a character: ");
+    scanf("%c",&c);
+    //If语句
+    if(c<32)
+        printf("This is a control character\n");
+    else if(c>='0'&&c<='9')
+        printf("This is a digit\n");
+    else if(c>='A'&&c<='Z')
+        printf("This is a capital letter\n");
+    else if(c>='a'&&c<='z')
+        printf("This is a small letter\n");
+    else
+        printf("This is an other character\n"); 
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast11.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [20 x i8] c"input a character: \00", align 1
+@1 = private unnamed_addr constant [3 x i8] c"%c\00", align 1
+@2 = private unnamed_addr constant [29 x i8] c"This is a control character\0A\00", align 1
+@3 = private unnamed_addr constant [17 x i8] c"This is a digit\0A\00", align 1
+@4 = private unnamed_addr constant [26 x i8] c"This is a capital letter\0A\00", align 1
+@5 = private unnamed_addr constant [24 x i8] c"This is a small letter\0A\00", align 1
+@6 = private unnamed_addr constant [28 x i8] c"This is an other character\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+declare i32 @scanf(i8*, ...)
+
+define void @main() {
+entry:
+  %c = alloca i8, align 1
+  %0 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([20 x i8], [20 x i8]* @0, i32 0, i32 0))
+  %1 = call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @1, i32 0, i32 0), i8* %c)
+  %2 = load i8, i8* %c, align 1
+  %3 = sext i8 %2 to i32
+  %4 = icmp slt i32 %3, 32
+  br i1 %4, label %Then, label %Else
+
+Then:                                             ; preds = %entry
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([29 x i8], [29 x i8]* @2, i32 0, i32 0))
+  br label %Merge9
+
+Else:                                             ; preds = %entry
+  %6 = load i8, i8* %c, align 1
+  %7 = icmp sge i8 %6, 48
+  %8 = load i8, i8* %c, align 1
+  %9 = icmp sle i8 %8, 57
+  %10 = select i1 %7, i1 %9, i1 false
+  br i1 %10, label %Then1, label %Else2
+
+Then1:                                            ; preds = %Else
+  %11 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([17 x i8], [17 x i8]* @3, i32 0, i32 0))
+  br label %Merge9
+
+Else2:                                            ; preds = %Else
+  %12 = load i8, i8* %c, align 1
+  %13 = icmp sge i8 %12, 65
+  %14 = load i8, i8* %c, align 1
+  %15 = icmp sle i8 %14, 90
+  %16 = select i1 %13, i1 %15, i1 false
+  br i1 %16, label %Then3, label %Else4
+
+Then3:                                            ; preds = %Else2
+  %17 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([26 x i8], [26 x i8]* @4, i32 0, i32 0))
+  br label %Merge9
+
+Else4:                                            ; preds = %Else2
+  %18 = load i8, i8* %c, align 1
+  %19 = icmp sge i8 %18, 97
+  %20 = load i8, i8* %c, align 1
+  %21 = icmp sle i8 %20, 122
+  %22 = select i1 %19, i1 %21, i1 false
+  br i1 %22, label %Then5, label %Else6
+
+Then5:                                            ; preds = %Else4
+  %23 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([24 x i8], [24 x i8]* @5, i32 0, i32 0))
+  br label %Merge9
+
+Else6:                                            ; preds = %Else4
+  %24 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([28 x i8], [28 x i8]* @6, i32 0, i32 0))
+  br label %Merge9
+
+Merge9:                                           ; preds = %Then1, %Then5, %Else6, %Then3, %Then
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res11.png)
+
+#### 6.3.2 While语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int getchar(void);
+
+void main(void)
+{
+    int n = 0;
+    printf("input a string: ");
+    //While语句
+    while(getchar() != '\n') n++;
+    printf("number of characters: %d\n",n);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast12.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [17 x i8] c"input a string: \00", align 1
+@1 = private unnamed_addr constant [26 x i8] c"number of characters: %d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+declare i32 @getchar()
+
+define void @main() {
+entry:
+  %n = alloca i32, align 4
+  store i32 0, i32* %n, align 4
+  %0 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([17 x i8], [17 x i8]* @0, i32 0, i32 0))
+  br label %WhileCond
+
+WhileCond:                                        ; preds = %WhileLoop, %entry
+  %1 = call i32 @getchar()
+  %2 = icmp ne i32 %1, 10
+  br i1 %2, label %WhileLoop, label %WhileEnd
+
+WhileLoop:                                        ; preds = %WhileCond
+  %3 = load i32, i32* %n, align 4
+  %4 = add i32 %3, 1
+  store i32 %4, i32* %n, align 4
+  br label %WhileCond
+
+WhileEnd:                                         ; preds = %WhileCond
+  %5 = load i32, i32* %n, align 4
+  %6 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([26 x i8], [26 x i8]* @1, i32 0, i32 0), i32 %5)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res12.png)
+
+#### 6.3.3 Do-While语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+void main(void)
+{
+    int i,sum = 0;
+    i = 1;
+    //Do-While语句
+    do{
+        sum = sum + i;
+        i++;
+    }
+    while(i <= 100);
+    printf("%d\n", sum);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast13.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %sum = alloca i32, align 4
+  %i = alloca i32, align 4
+  store i32 0, i32* %sum, align 4
+  store i32 1, i32* %i, align 4
+  %0 = load i32, i32* %i, align 4
+  br label %DoLoop
+
+DoLoop:                                           ; preds = %DoCond, %entry
+  %1 = load i32, i32* %sum, align 4
+  %2 = load i32, i32* %i, align 4
+  %3 = add i32 %1, %2
+  store i32 %3, i32* %sum, align 4
+  %4 = load i32, i32* %sum, align 4
+  %5 = load i32, i32* %i, align 4
+  %6 = add i32 %5, 1
+  store i32 %6, i32* %i, align 4
+  br label %DoCond
+
+DoCond:                                           ; preds = %DoLoop
+  %7 = load i32, i32* %i, align 4
+  %8 = icmp sle i32 %7, 100
+  br i1 %8, label %DoLoop, label %DoEnd
+
+DoEnd:                                            ; preds = %DoCond
+  %9 = load i32, i32* %sum, align 4
+  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %9)
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res13.png)
+
+#### 6.3.4 For语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+void main(void)
+{
+    int i, j, k;
+    //For语句
+    for (i=0; i<2; i++)
+        for(j=0; j<2; j++)
+            for(k=0; k<2; k++)
+                printf("%d %d %d\n", i, j, k);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast14.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [10 x i8] c"%d %d %d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %k = alloca i32, align 4
+  %j = alloca i32, align 4
+  %i = alloca i32, align 4
+  store i32 0, i32* %i, align 4
+  %0 = load i32, i32* %i, align 4
+  br label %ForCond
+
+ForCond:                                          ; preds = %ForEnd6, %entry
+  %1 = load i32, i32* %i, align 4
+  %2 = icmp slt i32 %1, 2
+  br i1 %2, label %ForLoop, label %ForEnd8
+
+ForLoop:                                          ; preds = %ForCond
+  store i32 0, i32* %j, align 4
+  %3 = load i32, i32* %j, align 4
+  br label %ForCond1
+
+ForCond1:                                         ; preds = %ForEnd, %ForLoop
+  %4 = load i32, i32* %j, align 4
+  %5 = icmp slt i32 %4, 2
+  br i1 %5, label %ForLoop2, label %ForEnd6
+
+ForLoop2:                                         ; preds = %ForCond1
+  store i32 0, i32* %k, align 4
+  %6 = load i32, i32* %k, align 4
+  br label %ForCond3
+
+ForCond3:                                         ; preds = %ForLoop4, %ForLoop2
+  %7 = load i32, i32* %k, align 4
+  %8 = icmp slt i32 %7, 2
+  br i1 %8, label %ForLoop4, label %ForEnd
+
+ForLoop4:                                         ; preds = %ForCond3
+  %9 = load i32, i32* %i, align 4
+  %10 = load i32, i32* %j, align 4
+  %11 = load i32, i32* %k, align 4
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([10 x i8], [10 x i8]* @0, i32 0, i32 0), i32 %9, i32 %10, i32 %11)
+  %13 = load i32, i32* %k, align 4
+  %14 = add i32 %13, 1
+  store i32 %14, i32* %k, align 4
+  br label %ForCond3
+
+ForEnd:                                           ; preds = %ForCond3
+  %15 = load i32, i32* %j, align 4
+  %16 = add i32 %15, 1
+  store i32 %16, i32* %j, align 4
+  br label %ForCond1
+
+ForEnd6:                                          ; preds = %ForCond1
+  %17 = load i32, i32* %i, align 4
+  %18 = add i32 %17, 1
+  store i32 %18, i32* %i, align 4
+  br label %ForCond
+
+ForEnd8:                                          ; preds = %ForCond
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res14.png)
+
+#### 6.3.5 Switch语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+
+void main(void)
+{
+    int a;
+    printf("input integer number: ");
+    scanf("%d", &a);
+    //Switch语句
+    switch(a){
+        case 1:printf("Monday\n");  break;
+        case 2:printf("Tuesday\n");   break;
+        case 3:printf("Wednesday\n");  break;
+        case 4:printf("Thursday\n");  break;
+        case 5:printf("Friday\n");  break;
+        case 6:printf("Saturday\n");  break;
+        case 7:printf("Sunday\n");  break;
+        default:printf("error\n");
+    }
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast15.png)
+
+3、IR
+
+由于生成的IR代码过长，因此不赘述。
+
+4、运行结果
+
+![](.\images\AST_Visualization\res15.png)
+
+#### 6.3.6 Continue和Break语句测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+
+void main(void)
+{
+    int i = 0;
+    while(1)
+    {
+        ++i;
+        if(i % 2 == 0)
+        {
+            continue;	//Continue语句
+        }
+        if(i > 9)
+        {
+            break;	//Break语句
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast16.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [4 x i8] c"%d \00", align 1
+@1 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define void @main() {
+entry:
+  %i = alloca i32, align 4
+  store i32 0, i32* %i, align 4
+  br label %WhileCond
+
+WhileCond:                                        ; preds = %Else2, %WhileCond, %entry
+  %0 = load i32, i32* %i, align 4
+  %1 = add i32 %0, 1
+  store i32 %1, i32* %i, align 4
+  %2 = load i32, i32* %i, align 4
+  %3 = load i32, i32* %i, align 4
+  %4 = srem i32 %3, 2
+  %5 = icmp eq i32 %4, 0
+  br i1 %5, label %WhileCond, label %Else
+
+Else:                                             ; preds = %WhileCond
+  %6 = load i32, i32* %i, align 4
+  %7 = icmp sgt i32 %6, 9
+  br i1 %7, label %WhileEnd, label %Else2
+
+Else2:                                            ; preds = %Else
+  %8 = load i32, i32* %i, align 4
+  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %8)
+  br label %WhileCond
+
+WhileEnd:                                         ; preds = %Else
+  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @1, i32 0, i32 0))
+  ret void
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res16.png)
+
+#### 6.3.7 Return语句测试
+
+1、测试代码
+
+```c++
+int main(void)
+{
+    //Return语句
+	return 0;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast17.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+define i32 @main() {
+entry:
+  ret i32 0
+}
+```
+
+4、运行结果
+
+因为只有一个主函数，所以没有运行结果。
+
+### 6.4 函数测试
+
+#### 6.4.1 简单函数测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+
+int GCD(int A, int B){
+	if (A % B)
+		return GCD(B, A % B);
+	else
+		return B;
+}
+
+int main(void){
+	int A, B;
+	scanf("%d%d", &A, &B);
+	printf("%d\n", GCD(A, B));
+	return 0;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast18.png)
+
+3、IR
+
+由于生成的IR代码过长，因此不赘述。
+
+4、运行结果
+
+![](.\images\AST_Visualization\res18.png)
+
+#### 6.4.2 递归函数测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+
+int Fact(int n);
+
+int main(void){
+	int n;
+	scanf("%d", &n);
+	printf("%d\n", Fact(n));
+	return 0;
+}
+
+//递归函数
+int Fact(int n){
+	if (n)
+		return n * Fact(n - 1);
+	else
+		return 1;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast19.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
+@1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+declare i32 @scanf(i8*, ...)
+
+define i32 @Fact(i32 %0) {
+entry:
+  %n = alloca i32, align 4
+  store i32 %0, i32* %n, align 4
+  %1 = load i32, i32* %n, align 4
+  %2 = icmp ne i32 %1, 0
+  br i1 %2, label %Then, label %Else
+
+Then:                                             ; preds = %entry
+  %3 = load i32, i32* %n, align 4
+  %4 = load i32, i32* %n, align 4
+  %5 = sub i32 %4, 1
+  %6 = call i32 @Fact(i32 %5)
+  %7 = mul i32 %3, %6
+  ret i32 %7
+
+Else:                                             ; preds = %entry
+  ret i32 1
+}
+
+define i32 @main() {
+entry:
+  %n = alloca i32, align 4
+  %0 = call i32 (i8*, ...) @scanf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @0, i32 0, i32 0), i32* %n)
+  %1 = load i32, i32* %n, align 4
+  %2 = call i32 @Fact(i32 %1)
+  %3 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %2)
+  ret i32 0
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res19.png)
+
+#### 6.4.3 可变长函数测试
+
+1、测试代码
+
+```c++
+int printf(char ptr, ...);	//可变长函数
+
+int main(){
+	printf("Hello World!\n");
+	return 0;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast20.png)
+
+3、IR
+
+```asm
+; ModuleID = 'main'
+source_filename = "main"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+@0 = private unnamed_addr constant [14 x i8] c"Hello World!\0A\00", align 1
+
+declare i32 @printf(i8*, ...)
+
+define i32 @main() {
+entry:
+  %0 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([14 x i8], [14 x i8]* @0, i32 0, i32 0))
+  ret i32 0
+}
+```
+
+4、运行结果
+
+![](.\images\AST_Visualization\res20.png)
+
+### 6.5 综合测试
+
+这一部分测试样例生成的IR代码均过长，因此都不赘述。
+
+#### 6.5.1 AVL树测试
+
+1、测试代码
+
+```c++
+/*
+An AVL tree is a self-balancing binary search tree. In an AVL tree, the heights of the two child subtrees of any node differ by at most one; if at any time they differ by more than one, rebalancing is done to restore this property.
+
+Now given a sequence of insertions, you are supposed to tell the structure of the resulting AVL tree.
+Input Specification:
+Each input file contains one test case. For each case, the first line contains a positive integer N which is the total number of keys to be inserted. Then N distinct integer keys are given in the next line. All the numbers in a line are separated by a space.
+
+Output Specification:
+For each test case, print the resulting AVL tree. Each tree node should contain its key value and its AVL balancing index.
+
+Sample Input 1:
+5
+88 70 61 96 120
+
+Sample Output 1:
+Tree:
+70:-1
+    61:0
+    96:0
+        88:0
+        120:0
+
+Sample Input 2:
+7
+88 70 61 96 120 90 65
+
+Sample Output 2:
+88:0
+    65:0
+        61:0
+        70:0
+    96:0
+        90:0
+        120:0
+*/
+
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+void ptr malloc(long);
+void free(void ptr);
+
+typedef struct {
+	Node ptr Left, Right;
+	int Value, AVL;
+} Node;
+
+typedef Node ptr pNode;
+
+pNode NewNode(int Value, pNode Left, pNode Right, int AVL) {
+	pNode T;
+	T = (pNode)malloc(sizeof(Node));
+	T->Left = Left;
+	T->Right = Right;
+	T->Value = Value;
+	T->AVL = AVL;
+	return T;
+}
+
+int UpdateFlag;
+pNode Insertion(pNode T, int Value) {
+	pNode Tmp, a, b, c;
+	if (T == 0) return NewNode(Value, 0, 0, 0);
+	if (Value < T->Value) {
+		T->Left = Insertion(T->Left, Value);
+		if (UpdateFlag) T->AVL++;
+		if (T->AVL != 1) UpdateFlag = 0;
+		if (T->AVL == 2) {//Unbalance
+			if (Value < T->Left->Value) {	//LL
+				Tmp = T->Left;
+				T->Left = T->Left->Right;
+				Tmp->Right = T;
+				T = Tmp;
+				T->AVL = 0;
+				T->Right->AVL = 0;
+			}
+			else {							//LR
+				Tmp = T->Left->Right;
+				T->Left->Right = Tmp->Left;
+				Tmp->Left = T->Left;
+				T->Left = Tmp->Right;
+				Tmp->Right = T;
+				T = Tmp;
+				if (T->AVL == 1) { T->Left->AVL = 0; T->Right->AVL = -1; }
+				else if (T->AVL == -1) { T->Left->AVL = 1; T->Right->AVL = 0; }
+				else { T->Left->AVL = 0; T->Right->AVL = 0; }
+				T->AVL = 0;
+			}
+		}
+	}
+	else {
+		T->Right = Insertion(T->Right, Value);
+		if (UpdateFlag) T->AVL--;
+		if (T->AVL != -1) UpdateFlag = 0;
+		if (T->AVL == -2) {//Unbalance
+			if (Value > T->Right->Value) {	//RR
+				Tmp = T->Right;
+				T->Right = T->Right->Left;
+				Tmp->Left = T;
+				T = Tmp;
+				T->AVL = 0;
+				T->Left->AVL = 0;
+			}
+			else {							//RL
+				Tmp = T->Right->Left;
+				T->Right->Left = Tmp->Right;
+				Tmp->Right = T->Right;
+				T->Right = Tmp->Left;
+				Tmp->Left = T;
+				T = Tmp;
+				if (T->AVL == 1) { T->Left->AVL = 0; T->Right->AVL = -1; }
+				else if (T->AVL == -1) { T->Left->AVL = 1; T->Right->AVL = 0; }
+				else { T->Left->AVL = 0; T->Right->AVL = 0; }
+				T->AVL = 0;
+			}
+		}
+	}
+	return T;
+}
+
+void PrintTree(pNode T, int Depth) {
+	for (int i = 0; i < Depth; i++) printf("    ");
+	if (!T)
+		return;
+	printf("%d:%d\n", T->Value, T->AVL);
+	PrintTree(T->Left, Depth + 1);
+	PrintTree(T->Right, Depth + 1);
+}
+
+
+int main() {
+	int N, Value;
+	pNode T = 0;
+	scanf("%d", &N);
+	for (int i = 0; i < N; i++) {
+		scanf("%d", &Value);
+		UpdateFlag = 1;
+		T = Insertion(T, Value);
+	}
+	printf("Tree:\n");
+	PrintTree(T, 0);
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast21.png)
+
+3、运行结果
+
+![](.\images\AST_Visualization\res21.png)
+
+#### 6.5.2 B+树测试
+
+1、测试代码
+
+```c++
+/*
+In this project, you are supposed to implement a B+ tree of order 3, with the following operations: initialize, insert (with splitting) and search. The B+ tree should be able to print out itself.
+
+Input Specification:
+Each input file contains one test case. For each case, the first line contains a positive number N (<=10^4), the number of integer keys to be inserted. Then a line of the N positive integer keys follows. All the numbers in a line are separated by spaces.
+
+Output Specification:
+For each test case, insert the keys into an initially empty B+ tree of order 3 according to the given order. Print in a line Key X is duplicated where X already exists when being inserted. After all the insertions, print out the B+ tree in a top-down lever-order format as shown by the samples.
+
+Sample Input 1:
+6
+7 8 9 10 7 4
+
+Sample Output 1:
+Key 7 is duplicated
+[9]
+[4,7,8][9,10]
+
+Sample Input 2:
+10
+3 1 4 5 9 2 6 8 7 0
+
+Sample Output 2:
+[6]
+[2,4][8]
+[0,1][2,3][4,5][6,7][8,9]
+
+Sample Input 3:
+3
+1 2 3
+
+Sample Output 3:
+[1,2,3]
+
+*/
+
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+void ptr malloc(long);
+void free(void ptr);
+
+typedef struct {
+	int array(4) v;
+	int sum;
+	int IsLeaf;
+	Node ptr array(4) child;
+} Node;
+
+typedef Node ptr pNode;
+
+bool AddValue(pNode NodePtr, int value) {
+	//return true if successful, false if duplicated
+	int i;
+	for (i = 0; i < NodePtr->sum; i++)
+		if (NodePtr->v[i] == value)
+			return false;
+	for (i = NodePtr->sum - 1; i >= 0; i--)
+		if (NodePtr->v[i] > value) NodePtr->v[i + 1] = NodePtr->v[i];
+		else break;
+	NodePtr->v[i + 1] = value;
+	NodePtr->sum++;
+	return true;
+}
+
+pNode NewNode(int IsLeaf) {
+	pNode NodePtr;
+	NodePtr = (pNode)malloc(sizeof(Node));
+	NodePtr->IsLeaf = IsLeaf;
+	NodePtr->sum = 0;
+	return NodePtr;
+}
+
+pNode Tree;
+
+bool Insert(pNode F, pNode T, int v) {
+	//return true if successful, false if duplicated 
+	int flag, i;
+	if (T->IsLeaf) {//Leaf Node
+		if (!AddValue(T, v)) return 0;
+		if (T->sum == 4) {
+			if (F) {//T is not the root
+				for (i = F->sum++; F->child[i - 1] != T; F->child[i] = F->child[i - 1], F->v[i - 1] = F->v[i - 2], i--);//Shift
+				F->v[i - 1] = T->v[2];	//Divide value = min(T->v[2],T->v[3])
+				F->child[i] = NewNode(1); F->child[i]->sum = 2; F->child[i]->v[0] = T->v[2]; F->child[i]->v[1] = T->v[3];
+				T->sum = 2;
+			}
+			else {//T is the root
+				Tree = NewNode(0); Tree->sum = 2; Tree->v[0] = T->v[2];
+				Tree->child[0] = T; T->sum = 2;
+				Tree->child[1] = NewNode(1); Tree->child[1]->sum = 2; Tree->child[1]->v[0] = T->v[2]; Tree->child[1]->v[1] = T->v[3];
+			}
+		}
+	}
+	else {//Nonleaf node
+		for (i = T->sum - 2; i >= 0 && T->v[i] > v; i--);//v[0] divides child[0] / child[1], v[1] divides child[1] / child[2]
+		if (!Insert(T, T->child[i + 1], v)) return 0;//Recursively insertion
+		if (T->sum == 4) {
+			if (F) {//T is not the root
+				for (i = F->sum++; F->child[i - 1] != T; F->child[i] = F->child[i - 1], F->v[i - 1] = F->v[i - 2], i--);//Shift
+				F->v[i - 1] = T->v[1];
+				F->child[i] = NewNode(0); F->child[i]->sum = 2; F->child[i]->child[0] = T->child[2]; F->child[i]->child[1] = T->child[3]; F->child[i]->v[0] = T->v[2];
+				T->sum = 2;
+			}
+			else {//T is the root
+				Tree = NewNode(0); Tree->sum = 2; Tree->v[0] = T->v[1];
+				Tree->child[0] = T; T->sum = 2;
+				Tree->child[1] = NewNode(0); Tree->child[1]->sum = 2; Tree->child[1]->v[0] = T->v[2]; Tree->child[1]->child[0] = T->child[2]; Tree->child[1]->child[1] = T->child[3];
+			}
+		}
+	}
+	return 1;
+}
+
+void PrintTree(pNode T) {
+	pNode ptr q = malloc(sizeof(pNode) * 10000);
+	int ptr level = malloc(sizeof(int) * 10000);
+	int f, r, i, lastlevel = 0;
+	f = 0; r = 1; q[0] = T; level[0] = 0;
+	while (f < r) {
+		T = q[f];
+		if (level[f] > lastlevel) printf("\n");
+		lastlevel = level[f];
+		f++;
+		printf("[%d", T->v[0]);
+		for (i = 1; i < ((T->IsLeaf) ? (T->sum) : (T->sum - 1)); i++) printf(",%d", T->v[i]);
+		printf("]");
+		if (T->IsLeaf == 0) for (i = 0; i < T->sum; i++, r++) {
+			q[r] = T->child[i];
+			level[r] = lastlevel + 1;
+		}
+	}
+	free(q);
+	free(level);
+}
+
+int main() {
+	int n, v;
+	Tree = NewNode(1);
+	scanf("%d", &n);
+	for (int i = 0; i < n; i++) {
+		scanf("%d", &v);
+		if (!Insert(0, Tree, v)) printf("Key %d is duplicated\n", v);
+	}
+	PrintTree(Tree);
+    printf("\n");
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast22.png)
+
+3、运行结果
+
+![](.\images\AST_Visualization\res22.png)
+
+#### 6.5.3 快排测试
+
+1、测试代码
+
+```c++
+/*
+Quick sort. Input the number of elements N and N integers. Output the sorted numbers in non-descent order.
+
+Sample Input:
+5
+10 8 5 3 7
+
+Sample Output:
+3 5 7 8 10
+*/
+
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+void ptr malloc(long);
+void free(void ptr);
+
+
+void QuickSort(int ptr Arr, int L, int R){
+	int i = L,
+		j = R,
+		Mid = Arr[(i + j) / 2];
+	while (i <= j){
+		while (Arr[i] < Mid) i++;
+		while (Mid < Arr[j]) j--;
+		if (i <= j){
+			int Tmp = Arr[i];
+			Arr[i] = Arr[j];
+			Arr[j] = Tmp;
+			i++; j--;
+		}
+	}
+	if (L < j) QuickSort(Arr, L, j);
+	if (i < R) QuickSort(Arr, i, R);
+}
+
+int main(void){
+	int N;
+	int ptr Arr;
+	printf("Input the number of elements:\n");
+	scanf("%d", &N);
+	Arr = malloc(N * sizeof(int));
+	printf("Input %d integers:\n", N);
+	for (int i = 0; i < N; i++)
+		scanf("%d", &Arr[i]);
+	QuickSort(Arr, 0, N - 1);
+	printf("QuickSort result:\n");
+	for (int i = 0; i < N; i++)
+		printf("%d ", Arr[i]);
+	free(Arr);
+	return 0;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast23.png)
+
+3、运行结果
+
+![](.\images\AST_Visualization\res23.png)
+
+#### 6.5.4 反转链表测试
+
+1、测试代码
+
+```c++
+/*
+Quick sort. Input the number of elements N and N integers. Output the sorted numbers in non-descent order.
+
+Sample Input:
+5
+10 8 5 3 7
+
+Sample Output:
+3 5 7 8 10
+*/
+
+int printf(char ptr, ...);
+int scanf(char ptr, ...);
+void ptr malloc(long);
+void free(void ptr);
+
+
+void QuickSort(int ptr Arr, int L, int R){
+	int i = L,
+		j = R,
+		Mid = Arr[(i + j) / 2];
+	while (i <= j){
+		while (Arr[i] < Mid) i++;
+		while (Mid < Arr[j]) j--;
+		if (i <= j){
+			int Tmp = Arr[i];
+			Arr[i] = Arr[j];
+			Arr[j] = Tmp;
+			i++; j--;
+		}
+	}
+	if (L < j) QuickSort(Arr, L, j);
+	if (i < R) QuickSort(Arr, i, R);
+}
+
+int main(void){
+	int N;
+	int ptr Arr;
+	printf("Input the number of elements:\n");
+	scanf("%d", &N);
+	Arr = malloc(N * sizeof(int));
+	printf("Input %d integers:\n", N);
+	for (int i = 0; i < N; i++)
+		scanf("%d", &Arr[i]);
+	QuickSort(Arr, 0, N - 1);
+	printf("QuickSort result:\n");
+	for (int i = 0; i < N; i++)
+		printf("%d ", Arr[i]);
+	free(Arr);
+    printf("\n");
+	return 0;
+}
+```
+
+2、AST
+
+![](.\images\AST_Visualization\ast24.png)
+
+3、运行结果
+
+![](.\images\AST_Visualization\res24.png)
