@@ -40,7 +40,7 @@ This project implements a compiler that can compile a C-like language into binar
 
    - Install LLVM C++ API
 
-     We recommend using VS2019 on Windows. For instructions on installing LLVM on Windows using Visual Studio, refer to [Getting Started with the LLVM System using Microsoft Visual Studio](https://llvm.org/docs/GettingStartedVS.html). Please make sure that your LLVM's version is 14.
+     We recommend using VS2019 on Windows. For instructions on installing LLVM on Windows using Visual Studio, refer to [Getting Started with the LLVM System using Microsoft Visual Studio](https://llvm.org/docs/GettingStartedVS.html). Please make sure that your LLVM's version is at least 14.
 
 2. Ubuntu
 
