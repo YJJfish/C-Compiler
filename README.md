@@ -60,7 +60,7 @@ This project implements a compiler that can compile a C-like language into binar
 
    `git clone git@github.com:YJJfish/C-Compiler.git`
 
-   `cd ./Compiler-Principle`
+   `cd ./C-Compiler`
 
 2. Use CMake to construct the project:
 
@@ -68,13 +68,13 @@ This project implements a compiler that can compile a C-like language into binar
 
    `cd ./build`
 
-   This step will automatically execute `flex` and `bison` command to generate `Lexer.cpp`, `Parser.hpp` and `Parser.cpp` in directory `Compiler-Principle/src`.
+   This step will automatically execute `flex` and `bison` command to generate `Lexer.cpp`, `Parser.hpp` and `Parser.cpp` in directory `C-Compiler/src`.
 
    If CMake throws an error due to "zlib" package, please install it on your computer:
 
    `sudo apt install zlib1g-dev`
 
-3. If you are using Windows and have installed Visual Studio on your computer, by default CMake will construct a Visual Studio solution `Compiler-Principle.sln` in the `build` directory. Open the solution and change compilation mode to `Release x64`, then you can compile the codes using Visual Studio.
+3. If you are using Windows and have installed Visual Studio on your computer, by default CMake will construct a Visual Studio solution `C-Compiler.sln` in the `build` directory. Open the solution and change compilation mode to `Release x64`, then you can compile the codes using Visual Studio.
 
    If you are using Ubuntu, by default CMake will construct a project with `Makefile`. Using `make` command to compile the code.
 

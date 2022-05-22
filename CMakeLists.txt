@@ -48,4 +48,12 @@ add_executable(${project_name} ${SOURCES})
 # Link
 ###############################################
 
-target_link_libraries(${project_name} ${LLVM_AVAILABLE_LIBS})
+if (WIN32)
+	target_link_libraries(${project_name} ${LLVM_AVAILABLE_LIBS})
+else()
+	execute_process(COMMAND llvm-config-14 --libs all
+					OUTPUT_VARIABLE llvm_libs)
+	string(STRIP ${llvm_libs} llvm_libs)
+	string(REPLACE " " ";" llvm_libs ${llvm_libs})
+	target_link_libraries(${project_name} ${llvm_libs})
+endif()
