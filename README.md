@@ -547,3 +547,16 @@ To run the target code on your machine, you can use any linker to transform `Tes
 
 We provide many test samples, from simple ones like `HelloWorld.c` to complex ones like `B+Tree.c`. All codes are placed in `./C-Compiler/test/`.
 
+## Contributors
+
+- #### [Jinjiang You](https://yjjfish.github.io/)(尤锦江)
+
+  CFG & Code Generation & Documentation
+
+- #### Zhiyun Zhang(张之昀)
+
+  Lexer & Parser
+
+- #### Yihang Chen(陈一航)
+
+  Visualization & Test Samples
