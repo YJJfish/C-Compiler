@@ -110,7 +110,7 @@ We provide many test samples, from simple ones like `HelloWorld.c` to complex on
 
 - #### [Jinjiang You](https://yjjfish.github.io/)(尤锦江)
 
-  CFG & Code Generation & Documentation
+  Context Free Grammar Design & Code Generation & Test Samples & Documentation
 
 - #### Zhiyun Zhang(张之昀)
 
